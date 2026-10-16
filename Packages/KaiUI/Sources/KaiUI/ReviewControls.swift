@@ -31,13 +31,17 @@ public enum ReviewRating: String, CaseIterable, Sendable {
 public struct RatingBar: View {
     private let onRate: (ReviewRating) -> Void
     private let interval: (ReviewRating) -> String?
+    private let axis: Axis
 
     /// - Parameter interval: returns the next-review interval caption for a rating
     ///   (e.g. "1d"), or nil to omit it.
+    ///   - axis: a row under the card, or a column beside it (a screen on its side).
     public init(
+        axis: Axis = .horizontal,
         interval: @escaping (ReviewRating) -> String? = { _ in nil },
         onRate: @escaping (ReviewRating) -> Void
     ) {
+        self.axis = axis
         self.interval = interval
         self.onRate = onRate
     }
@@ -47,7 +51,7 @@ public struct RatingBar: View {
             // Liquid Glass, as the system's own controls are: one glass container so the
             // four read as a group (and merge as they press), each rating in its colour.
             GlassEffectContainer(spacing: KaiSpacing.s) {
-                HStack(spacing: KaiSpacing.s) {
+                stack {
                     ForEach(ReviewRating.allCases, id: \.self) { rating in
                         Button { rate(rating) } label: {
                             // The glass style pads the label itself; this keeps the
@@ -62,7 +66,7 @@ public struct RatingBar: View {
                 }
             }
         } else {
-            HStack(spacing: KaiSpacing.s) {
+            stack {
                 ForEach(ReviewRating.allCases, id: \.self) { rating in
                     Button { rate(rating) } label: {
                         label(rating)
@@ -81,6 +85,10 @@ public struct RatingBar: View {
                 }
             }
         }
+    }
+
+    private var stack: AnyLayout {
+        axis == .horizontal ? AnyLayout(HStackLayout(spacing: KaiSpacing.s)) : AnyLayout(VStackLayout(spacing: KaiSpacing.s))
     }
 
     private func rate(_ rating: ReviewRating) {

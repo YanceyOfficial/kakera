@@ -26,8 +26,12 @@ let project = Project(
                         "UIImageName": "LaunchMark",
                     ],
                     "CFBundleDisplayName": "Kai",
-                    // A portrait app on every iPhone, folded or unfolded (an iPhone Duo too); iPads turn freely.
-                    "UISupportedInterfaceOrientations~iphone": ["UIInterfaceOrientationPortrait"],
+                    // Upright on a phone-sized screen and turning on a larger one (an iPhone Duo unfolded): the app
+                    // delegate narrows this per screen at run time (`KaiOrientation`); iPads turn freely.
+                    "UISupportedInterfaceOrientations~iphone": [
+                        "UIInterfaceOrientationPortrait", "UIInterfaceOrientationLandscapeLeft",
+                        "UIInterfaceOrientationLandscapeRight",
+                    ],
                     "UISupportedInterfaceOrientations~ipad": [
                         "UIInterfaceOrientationPortrait", "UIInterfaceOrientationPortraitUpsideDown",
                         "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight",

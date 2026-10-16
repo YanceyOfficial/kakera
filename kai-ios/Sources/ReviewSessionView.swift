@@ -211,54 +211,74 @@ struct ReviewSessionView: View {
     }
 
     private var reviewContent: some View {
-        VStack(spacing: KaiSpacing.l) {
-            header
-            SessionProgressBar(progress: cards.isEmpty ? 0 : Double(index) / Double(cards.count))
+        GeometryReader { proxy in
+            // A screen on its side (an iPhone Duo unfolded — phones stay upright): the card on the left, its buttons
+            // in a column on the right, instead of a row under a card too short for the space.
+            let beside = proxy.size.width > proxy.size.height
+            VStack(spacing: KaiSpacing.l) {
+                header
+                SessionProgressBar(progress: cards.isEmpty ? 0 : Double(index) / Double(cards.count))
 
-            if index < cards.count {
-                let card = cards[index]
-                ZStack {
-                    // The next card rises into place only as this one is swiped or thrown
-                    // away. At rest it is not there at all: the card in hand turns edge-on
-                    // as it flips, and nothing may show through behind it.
-                    if index + 1 < cards.count {
-                        let next = cards[index + 1]
-                        FlipCardFace(word: next.word, phonetic: next.phonetic)
-                            .scaleEffect(0.94 + 0.06 * swipeProgress)
-                            .offset(y: 16 * (1 - swipeProgress))
-                            .opacity(swipeProgress)
+                if index < cards.count {
+                    let card = cards[index]
+                    if beside {
+                        HStack(alignment: .center, spacing: KaiSpacing.l) {
+                            cardStack(card)
+                            controls(for: card, axis: .vertical)
+                                .frame(width: 220)
+                        }
+                        Spacer(minLength: 0)
+                    } else {
+                        // The card gives way first on a short screen (a Duo folded), so the buttons stay in view.
+                        cardStack(card)
+                            .layoutPriority(1)
+                        Spacer(minLength: KaiSpacing.s)
+                        controls(for: card)
+                            .padding(.bottom, KaiSpacing.s)
                     }
-                    FlipCard(
-                        word: card.word,
-                        phonetic: card.phonetic,
-                        isLearned: card.isLearned,
-                        autoPlays: autoPlayPronunciation,
-                        isRevealed: $revealed,
-                        onSpeak: { pronouncer.say(card.word, phonetic: card.phonetic, language: language, accent: accent) },
-                        // Right is Good, left is Again; Hard and Easy stay on the buttons.
-                        // A swipe rates Good (right) or Again (left); a thrown card carries
-                        // the rating its button chose.
-                        onSwipe: { direction in
-                            let rating = pendingRating ?? (direction == .right ? .good : .again)
-                            pendingRating = nil
-                            rate(card, rating, swiped: !reduceMotion)
-                        },
-                        onSwipeProgress: { swipeProgress = $0 },
-                        fling: pendingRating.map { $0 == .again || $0 == .hard ? .left : .right }
-                    ) {
-                        cardBack(card)
-                    }
-                    .id(card.id)   // a fresh card (and turn state) per word
+                } else {
+                    completed
                 }
-
-                Spacer()
-                controls(for: card)
-                    .padding(.bottom, KaiSpacing.s)
-            } else {
-                completed
             }
+            .padding(KaiSpacing.l)
         }
-        .padding(KaiSpacing.l)
+    }
+
+    /// The card in hand, and the next one rising behind it as this one leaves.
+    private func cardStack(_ card: ReviewCardData) -> some View {
+        ZStack {
+            // The next card rises into place only as this one is swiped or thrown
+            // away. At rest it is not there at all: the card in hand turns edge-on
+            // as it flips, and nothing may show through behind it.
+            if index + 1 < cards.count {
+                let next = cards[index + 1]
+                FlipCardFace(word: next.word, phonetic: next.phonetic)
+                    .scaleEffect(0.94 + 0.06 * swipeProgress)
+                    .offset(y: 16 * (1 - swipeProgress))
+                    .opacity(swipeProgress)
+            }
+            FlipCard(
+                word: card.word,
+                phonetic: card.phonetic,
+                isLearned: card.isLearned,
+                autoPlays: autoPlayPronunciation,
+                isRevealed: $revealed,
+                onSpeak: { pronouncer.say(card.word, phonetic: card.phonetic, language: language, accent: accent) },
+                // Right is Good, left is Again; Hard and Easy stay on the buttons.
+                // A swipe rates Good (right) or Again (left); a thrown card carries
+                // the rating its button chose.
+                onSwipe: { direction in
+                    let rating = pendingRating ?? (direction == .right ? .good : .again)
+                    pendingRating = nil
+                    rate(card, rating, swiped: !reduceMotion)
+                },
+                onSwipeProgress: { swipeProgress = $0 },
+                fling: pendingRating.map { $0 == .again || $0 == .hard ? .left : .right }
+            ) {
+                cardBack(card)
+            }
+            .id(card.id)   // a fresh card (and turn state) per word
+        }
     }
 
     // MARK: Pieces
@@ -309,9 +329,9 @@ struct ReviewSessionView: View {
     }
 
     @ViewBuilder
-    private func controls(for card: ReviewCardData) -> some View {
+    private func controls(for card: ReviewCardData, axis: Axis = .horizontal) -> some View {
         if revealed {
-            RatingBar(interval: { store.previewInterval(for: card, rating: $0.core) }) { rating in
+            RatingBar(axis: axis, interval: { store.previewInterval(for: card, rating: $0.core) }) { rating in
                 // Again and Hard throw the card left, Good and Easy right — the same way
                 // the swipes go — and the next card rises as it leaves.
                 guard pendingRating == nil else { return }

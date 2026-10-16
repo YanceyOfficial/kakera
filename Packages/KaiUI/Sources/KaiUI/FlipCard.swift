@@ -165,7 +165,7 @@ public struct FlipCard<Back: View>: View {
     private func card(_ content: some View) -> some View {
         content
             .frame(maxWidth: .infinity)
-            .frame(height: 380)
+            .frame(minHeight: FlipCardHeight.minimum, maxHeight: FlipCardHeight.maximum)
             .padding(KaiSpacing.l)
             .background(cardSurface)
     }
@@ -382,7 +382,7 @@ public struct FlipCardFace: View {
                 .font(KaiFont.body(13, weight: .medium))
                 .foregroundStyle(KaiColor.inkSecondary.opacity(0.7))
         }
-        .frame(height: 380)
+        .frame(minHeight: FlipCardHeight.minimum, maxHeight: FlipCardHeight.maximum)
         .padding(KaiSpacing.l)
         .background(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
@@ -449,4 +449,11 @@ struct LearnedMark: View {
         }
         .padding(KaiSpacing.l)
     }
+}
+
+/// How tall a card's face is: 380 pt where the screen has room, down to 240 where it hasn't (an iPhone Duo folded,
+/// a short window), so the buttons under it stay on screen. Give the card layout priority over a spacer beside it.
+public enum FlipCardHeight {
+    public static let maximum: CGFloat = 380
+    public static let minimum: CGFloat = 240
 }

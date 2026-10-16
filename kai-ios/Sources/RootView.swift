@@ -31,6 +31,12 @@ struct RootView: View {
             }
         }
         .environment(toast)
+        // Folding or unfolding an iPhone Duo moves the window to the other screen: which way it may turn changes too.
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { _ in
+            for scene in UIApplication.shared.connectedScenes {
+                (scene as? UIWindowScene)?.keyWindow?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
+            }
+        }
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: toast.current?.id)
         .launchSplash { splashDone = true }
         .fullScreenCover(isPresented: Binding(get: { seeded && splashDone && !hasOnboarded }, set: { _ in })) {
