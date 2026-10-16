@@ -212,37 +212,39 @@ struct ReviewSessionView: View {
 
     private var reviewContent: some View {
         GeometryReader { proxy in
-            // A screen on its side (an iPhone Duo unfolded — phones stay upright): the card on the left, its buttons
-            // in a column on the right, instead of a row under a card too short for the space.
-            let beside = proxy.size.width > proxy.size.height
-            VStack(spacing: KaiSpacing.l) {
+            // A short screen (an iPhone Duo folded) gives its margins to the card.
+            let tight = proxy.size.height < Self.tightHeight
+            VStack(spacing: tight ? KaiSpacing.m : KaiSpacing.l) {
                 header
                 SessionProgressBar(progress: cards.isEmpty ? 0 : Double(index) / Double(cards.count))
 
                 if index < cards.count {
                     let card = cards[index]
-                    if beside {
-                        HStack(alignment: .center, spacing: KaiSpacing.l) {
-                            cardStack(card)
-                            controls(for: card, axis: .vertical)
-                                .frame(width: 220)
-                        }
-                        Spacer(minLength: 0)
-                    } else {
-                        // The card gives way first on a short screen (a Duo folded), so the buttons stay in view.
+                    // The card and its buttons are one column, centred and no wider than a card reads well: on a wide
+                    // screen (a Duo unfolded, on its side) they don't stretch across it.
+                    VStack(spacing: tight ? KaiSpacing.m : KaiSpacing.l) {
+                        // The card gives way first on a short screen, so the buttons stay in view.
                         cardStack(card)
                             .layoutPriority(1)
-                        Spacer(minLength: KaiSpacing.s)
+                        Spacer(minLength: 0)
                         controls(for: card)
-                            .padding(.bottom, KaiSpacing.s)
+                            .padding(.bottom, tight ? 0 : KaiSpacing.s)
                     }
+                    .frame(maxWidth: Self.columnWidth)
+                    .frame(maxWidth: .infinity)
                 } else {
                     completed
                 }
             }
-            .padding(KaiSpacing.l)
+            .padding(.horizontal, KaiSpacing.l)
+            .padding(.vertical, tight ? KaiSpacing.s : KaiSpacing.l)
         }
     }
+
+    /// Below this height the review screen tightens its margins (the Duo folded is about 640 pt).
+    private static let tightHeight: CGFloat = 720
+    /// The widest the card and its buttons get.
+    private static let columnWidth: CGFloat = 560
 
     /// The card in hand, and the next one rising behind it as this one leaves.
     private func cardStack(_ card: ReviewCardData) -> some View {
@@ -329,9 +331,9 @@ struct ReviewSessionView: View {
     }
 
     @ViewBuilder
-    private func controls(for card: ReviewCardData, axis: Axis = .horizontal) -> some View {
+    private func controls(for card: ReviewCardData) -> some View {
         if revealed {
-            RatingBar(axis: axis, interval: { store.previewInterval(for: card, rating: $0.core) }) { rating in
+            RatingBar(interval: { store.previewInterval(for: card, rating: $0.core) }) { rating in
                 // Again and Hard throw the card left, Good and Easy right — the same way
                 // the swipes go — and the next card rises as it leaves.
                 guard pendingRating == nil else { return }
