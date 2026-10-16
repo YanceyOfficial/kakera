@@ -148,12 +148,14 @@ private struct SpeedDialInVerticalBar: ViewModifier {
         content
             .environment(\.usesSpeedDial, dial)
             .overlay {
-                // A press anywhere else closes an open dial.
+                // An open dial dims the screen behind it (Material's backdrop); a press there closes it.
                 if dial && isOpen {
-                    Color.clear
+                    KaiColor.sumi.opacity(0.16)
                         .contentShape(Rectangle())
                         .ignoresSafeArea()
                         .onTapGesture { withAnimation(KaiMotion.snappy) { isOpen = false } }
+                        .transition(.opacity)
+                        .accessibilityHidden(true)
                 }
             }
             .overlay(alignment: .bottomTrailing) {
