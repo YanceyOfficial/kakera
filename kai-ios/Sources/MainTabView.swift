@@ -16,18 +16,22 @@ struct MainTabView: View {
     var body: some View {
         TabView(selection: $selection) {
             ReviewTab()
+                .clearOfTopEdge()
                 .tag(0)
                 .tabItem { Label("Review", systemImage: "rectangle.on.rectangle.angled") }
 
             WordsListView()
+                .clearOfTopEdge()
                 .tag(1)
                 .tabItem { Label("Words", systemImage: "text.book.closed") }
 
             StatsView()
+                .clearOfTopEdge()
                 .tag(2)
                 .tabItem { Label("Stats", systemImage: "chart.bar.xaxis") }
 
             SettingsView()
+                .clearOfTopEdge()
                 .tag(3)
                 .tabItem { Label("Settings", systemImage: "gearshape") }
         }

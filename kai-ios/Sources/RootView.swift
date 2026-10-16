@@ -63,3 +63,24 @@ struct RootView: View {
     RootView()
         .modelContainer(try! KaiModelContainer.inMemory())
 }
+
+extension View {
+    /// Keeps every screen's header clear of the display's top edge where the safe area doesn't: an iPhone Duo shows
+    /// its status bar in the vertical bar beside the camera, so its top inset is a few points and a header there runs
+    /// under the screen's rounded edge. The safe area grows to `minimum` there; with a status bar on top (every other
+    /// iPhone) it is already deeper and nothing changes.
+    func clearOfTopEdge(minimum: CGFloat = 24) -> some View {
+        modifier(TopEdgeClearance(minimum: minimum))
+    }
+}
+
+private struct TopEdgeClearance: ViewModifier {
+    let minimum: CGFloat
+
+    func body(content: Content) -> some View {
+        GeometryReader { proxy in
+            content.safeAreaPadding(.top, max(0, minimum - proxy.safeAreaInsets.top))
+        }
+    }
+}
+

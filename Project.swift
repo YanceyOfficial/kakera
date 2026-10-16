@@ -26,6 +26,12 @@ let project = Project(
                         "UIImageName": "LaunchMark",
                     ],
                     "CFBundleDisplayName": "Kai",
+                    // A portrait app on every iPhone, folded or unfolded (an iPhone Duo too); iPads turn freely.
+                    "UISupportedInterfaceOrientations~iphone": ["UIInterfaceOrientationPortrait"],
+                    "UISupportedInterfaceOrientations~ipad": [
+                        "UIInterfaceOrientationPortrait", "UIInterfaceOrientationPortraitUpsideDown",
+                        "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight",
+                    ],
                 ]
             ),
             buildableFolders: [
