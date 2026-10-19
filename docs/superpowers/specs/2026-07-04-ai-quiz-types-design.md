@@ -16,13 +16,13 @@ stored but not rendered yet.
 
 ## Design
 
-### KaiCore
+### KakeraCore
 
 - **`Quiz`** value type (Codable, Hashable, Sendable):
   `{ type: QuizType, question: String, choices: [String], answers: [String], translation: String }`.
 - `VocabularyEntry` gains `quizzes: [Quiz] = []` (+ init param).
 
-### KaiAI → mapper
+### KakeraAI → mapper
 
 `AICardMapper.entry(from:)` maps `card.quizzes` → `[Quiz]`, resolving `GeneratedQuiz.type`
 (String) to `QuizType`; entries whose type is unknown are dropped. All known types are

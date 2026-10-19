@@ -1,21 +1,25 @@
 import ProjectDescription
 
 let project = Project(
-    name: "kai-ios",
+    name: "kakera",
     packages: [
-        .local(path: "Packages/KaiCore"),
-        .local(path: "Packages/KaiFSRS"),
-        .local(path: "Packages/KaiAI"),
-        .local(path: "Packages/KaiServices"),
-        .local(path: "Packages/KaiUI"),
+        .local(path: "Packages/KakeraCore"),
+        .local(path: "Packages/KakeraFSRS"),
+        .local(path: "Packages/KakeraAI"),
+        .local(path: "Packages/KakeraServices"),
+        .local(path: "Packages/KakeraUI"),
     ],
-    settings: .settings(base: ["SWIFT_VERSION": "6.0"]),
+    settings: .settings(base: [
+        "SWIFT_VERSION": "6.0",
+        // The Apple Developer Program team.
+        "DEVELOPMENT_TEAM": "A542S7SY83",
+    ]),
     targets: [
         .target(
-            name: "kai-ios",
+            name: "Kakera",
             destinations: .iOS,
             product: .app,
-            bundleId: "dev.tuist.kai-ios",
+            bundleId: "app.yancey.kakera",
             deploymentTargets: .iOS("17.0"),
             infoPlist: .extendingDefault(
                 with: [
@@ -25,9 +29,13 @@ let project = Project(
                         "UIColorName": "LaunchBackground",
                         "UIImageName": "LaunchMark",
                     ],
-                    "CFBundleDisplayName": "Kai",
+                    "CFBundleDisplayName": "Kakera",
+                    // Only HTTPS (exempt): App Store Connect needn't ask about export compliance.
+                    "ITSAppUsesNonExemptEncryption": false,
+                    // CloudKit pushes silently when another device changed the store.
+                    "UIBackgroundModes": ["remote-notification"],
                     // Upright on a phone-sized screen and turning on a larger one (an iPhone Duo unfolded): the app
-                    // delegate narrows this per screen at run time (`KaiOrientation`); iPads turn freely.
+                    // delegate narrows this per screen at run time (`KakeraOrientation`); iPads turn freely.
                     "UISupportedInterfaceOrientations~iphone": [
                         "UIInterfaceOrientationPortrait", "UIInterfaceOrientationLandscapeLeft",
                         "UIInterfaceOrientationLandscapeRight",
@@ -39,56 +47,76 @@ let project = Project(
                 ]
             ),
             buildableFolders: [
-                "kai-ios/Sources",
-                "kai-ios/Resources",
+                "kakera/Sources",
+                "kakera/Resources",
             ],
             entitlements: .dictionary([
-                "com.apple.security.application-groups": ["group.dev.tuist.kai-ios"],
+                "com.apple.security.application-groups": ["group.app.yancey.kakera"],
+                // SwiftData mirrors the store to this container's private database (KakeraModelContainer).
+                "com.apple.developer.icloud-container-identifiers": ["iCloud.app.yancey.kakera"],
+                "com.apple.developer.icloud-services": ["CloudKit"],
+                // The "starter deck planted" flags (RootView), shared by a person's devices.
+                "com.apple.developer.ubiquity-kvstore-identifier": "$(TeamIdentifierPrefix)$(CFBundleIdentifier)",
+                // Archiving for the App Store switches this to production.
+                "aps-environment": "development",
             ]),
             dependencies: [
-                .package(product: "KaiCore"),
-                .package(product: "KaiFSRS"),
-                .package(product: "KaiAI"),
-                .package(product: "KaiServices"),
-                .package(product: "KaiUI"),
-                .target(name: "KaiWidget"),
+                .package(product: "KakeraCore"),
+                .package(product: "KakeraFSRS"),
+                .package(product: "KakeraAI"),
+                .package(product: "KakeraServices"),
+                .package(product: "KakeraUI"),
+                .target(name: "KakeraWidget"),
             ]
         ),
         .target(
-            name: "KaiWidget",
+            name: "KakeraWidget",
             destinations: .iOS,
             product: .appExtension,
-            bundleId: "dev.tuist.kai-ios.widget",
+            bundleId: "app.yancey.kakera.widget",
             deploymentTargets: .iOS("17.0"),
             infoPlist: .extendingDefault(
                 with: [
-                    "CFBundleDisplayName": "Kai",
+                    "CFBundleDisplayName": "Kakera",
                     "NSExtension": [
                         "NSExtensionPointIdentifier": "com.apple.widgetkit-extension",
                     ],
                 ]
             ),
             buildableFolders: [
-                "kai-widget/Sources",
+                "kakera-widget/Sources",
+                "kakera-widget/Resources",
             ],
             entitlements: .dictionary([
-                "com.apple.security.application-groups": ["group.dev.tuist.kai-ios"],
+                "com.apple.security.application-groups": ["group.app.yancey.kakera"],
             ]),
             dependencies: [
-                .package(product: "KaiServices"),
-                .package(product: "KaiUI"),
+                .package(product: "KakeraServices"),
+                .package(product: "KakeraUI"),
             ]
         ),
         .target(
-            name: "kai-iosTests",
+            name: "KakeraTests",
             destinations: .iOS,
             product: .unitTests,
-            bundleId: "dev.tuist.kai-iosTests",
+            bundleId: "app.yancey.kakeraTests",
             infoPlist: .default,
             buildableFolders: [
-                "kai-ios/Tests"
+                "kakera/Tests"
             ],
-            dependencies: [.target(name: "kai-ios")]
+            dependencies: [.target(name: "Kakera")]
+        ),
+        // Drives the app through its screens for the README and website screenshots (`scripts/screenshots.sh`).
+        .target(
+            name: "KakeraUITests",
+            destinations: .iOS,
+            product: .uiTests,
+            bundleId: "app.yancey.kakeraUITests",
+            infoPlist: .default,
+            buildableFolders: [
+                "kakera/UITests"
+            ],
+            dependencies: [.target(name: "Kakera")]
         ),
     ]
 )

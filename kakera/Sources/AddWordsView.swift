@@ -1,0 +1,146 @@
+import SwiftUI
+import SwiftData
+import KakeraCore
+import KakeraAI
+import KakeraUI
+import KakeraServices
+
+/// Authoring sheet: type or paste words (one per line) and AI generates full cards,
+/// into the deck of the language being studied.
+/// A single word is just a one-line entry — no mode switch needed.
+struct AddWordsView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+    @Environment(ToastCenter.self) private var toast
+
+    @State private var pasted = ""
+    @State private var generating = false
+    @State private var errorMessage: String?
+    @FocusState private var fieldFocused: Bool
+
+    private var repository: VocabularyRepository { VocabularyRepository(context: modelContext) }
+
+    /// One lemma per non-empty line.
+    private var lemmas: [String] { PastedWordsParser.lemmas(from: pasted) }
+
+    private var hasKey: Bool { AIConfigStore.hasKey }
+    private var canGenerate: Bool { !generating && hasKey && !lemmas.isEmpty }
+    private var providerName: String { AIConfigStore.currentKind() == .openai ? "OpenAI" : "Claude" }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField(AppSettings.studyLanguage == .japanese ? "One word per line — 懐かしい" : "One word per line", text: $pasted, axis: .vertical)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .frame(minHeight: 160, alignment: .topLeading)
+                        .disabled(generating)
+                        .focused($fieldFocused)
+                } header: {
+                    Text("Words")
+                } footer: {
+                    statusFooter
+                }
+            }
+            .navigationTitle("Add words")
+            .navigationBarTitleDisplayMode(.inline)
+            .task {
+                // Focus the field (and raise the keyboard) as the sheet settles.
+                try? await Task.sleep(nanoseconds: 350_000_000)
+                fieldFocused = true
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }.disabled(generating)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    if generating {
+                        ProgressView()
+                    } else {
+                        Button("Generate") { generate() }.disabled(!canGenerate)
+                    }
+                }
+            }
+            .alert("Couldn’t generate", isPresented: Binding(
+                get: { errorMessage != nil },
+                set: { if !$0 { errorMessage = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(errorMessage ?? "")
+            }
+        }
+        .tint(KakeraColor.vermilion)
+    }
+
+    @ViewBuilder
+    private var statusFooter: some View {
+        if !hasKey {
+            Text("Add an API key in Settings to generate words.")
+        } else if generating {
+            Text("Generating \(lemmas.count) word\(lemmas.count == 1 ? "" : "s") with \(providerName)…")
+        } else {
+            Text("\(providerName) fills in \(AppSettings.studyLanguage == .japanese ? "readings" : "phonetics"), meanings, and examples. \(lemmas.count) word\(lemmas.count == 1 ? "" : "s").")
+        }
+    }
+
+    // MARK: Generation
+
+    private func generate() {
+        Task { await run() }
+    }
+
+    @MainActor
+    private func run() async {
+        let words = lemmas
+        let language = AppSettings.studyLanguage
+        guard !words.isEmpty else { return }
+
+        generating = true
+        defer { generating = false }
+
+        let config: AIConfiguration
+        do { config = try await AIConfigStore.readyConfiguration() }
+        catch {
+            AppLog.shared.error("Generation failed: \(error.localizedDescription)", category: "ai")
+            errorMessage = error.localizedDescription
+            return
+        }
+
+        // Chunked so a large batch can't blow the model's output budget, the chunks in
+        // flight together; best-effort so a failed chunk doesn't lose the words that did
+        // generate.
+        let provider = ProviderFactory.make(config)
+        let outcome = await provider.generateCards(
+            lemmas: words, language: language, literaryExamples: false, chunkSize: Self.aiChunkSize(for: language))
+
+        var added = 0
+        for card in outcome.cards {
+            if (try? repository.insertIfAbsent(AICardMapper.entry(from: card, language: language))) == true { added += 1 }
+        }
+
+        if outcome.cards.isEmpty {
+            let message = outcome.failures.first ?? "Generation failed."
+            AppLog.shared.error("Generation failed: \(message)", category: "ai")
+            errorMessage = message
+            return
+        }
+
+        if outcome.hasFailures {
+            AppLog.shared.warning("Batch generation: \(outcome.failures.count) chunk(s) failed", category: "ai")
+            toast.show("Added \(added) · \(outcome.failures.count) batch\(outcome.failures.count == 1 ? "" : "es") failed")
+        } else {
+            toast.show("Added \(added) word\(added == 1 ? "" : "s")")
+        }
+        dismiss()
+    }
+
+    /// Words per AI request. Cards are content-rich (bilingual, collocations, quizzes),
+    /// so chunks stay small — and smaller for Japanese, whose furigana markup roughly
+    /// doubles the output (eight Japanese cards in one request ran past the output limit
+    /// and came back cut off). Small chunks also finish sooner, since they run together.
+    private static func aiChunkSize(for language: LanguageDomain) -> Int {
+        language == .japanese ? 2 : 4
+    }
+}

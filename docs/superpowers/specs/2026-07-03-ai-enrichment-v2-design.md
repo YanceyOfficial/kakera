@@ -43,14 +43,14 @@ Chinese fixes this.
 Only **Meaning** is truly bilingual; every other field is already English-content with a
 Chinese gloss, so no parallel `*Zh` fields are needed.
 
-**`KaiCore.VocabularyEntry`** — the only change here:
+**`KakeraCore.VocabularyEntry`** — the only change here:
 
 | Field | Type | Notes |
 |-------|------|-------|
 | `explanation` | `String` (existing) | Now the **concise Chinese** gloss (POS + short meaning). Used by quiz, list row, and detail. |
 | `explanationEn` | `String?` (new) | The full **English** definition; shown only on the detail Meaning section, never in the quiz. |
 
-**`KaiCore.SynonymGroup`** — no change: `sense` is the **Chinese** label; `words` are the
+**`KakeraCore.SynonymGroup`** — no change: `sense` is the **Chinese** label; `words` are the
 English synonyms. (The seed already uses Chinese senses, e.g. `古怪的`.)
 
 **Notes (`roots` / `mnemonic` / `etymology`)** — no new fields; these are generated in
@@ -58,13 +58,13 @@ English synonyms. (The seed already uses Chinese senses, e.g. `古怪的`.)
 (e.g. `ec-（出）+ centr（中心）+ -ic → 偏离中心`).
 
 **Display (`WordDetailView`):** the Meaning section renders the Chinese `explanation`, then
-`explanationEn` below in `KaiColor.inkSecondary` (same two-line pattern as example
+`explanationEn` below in `KakeraColor.inkSecondary` (same two-line pattern as example
 sentences); the English line is omitted when nil/empty. Similar words and Notes render their
 (Chinese) text directly.
 
 ### 2. Annotations — user-authored, never AI
 
-**New value type `KaiCore.Annotation`** (Codable, Hashable, Sendable):
+**New value type `KakeraCore.Annotation`** (Codable, Hashable, Sendable):
 
 ```swift
 public struct Annotation: Codable, Hashable, Sendable, Identifiable {
@@ -89,7 +89,7 @@ persists.
 
 ### 3. Collocations — AI-generated
 
-**New value type `KaiCore.Collocation`** (Codable, Hashable, Sendable):
+**New value type `KakeraCore.Collocation`** (Codable, Hashable, Sendable):
 
 ```swift
 public struct Collocation: Codable, Hashable, Sendable {
@@ -105,7 +105,7 @@ Stored on `VocabularyEntry` as `collocations: [Collocation] = []`.
 **Display (`WordDetailView`):** a new **Collocations** section — each row shows the phrase
 (emphasis), the Chinese meaning, and the example sentence with its translation below.
 
-### AI layer (KaiAI)
+### AI layer (KakeraAI)
 
 **`GeneratedCard`** — changes:
 - `explanation` is now the **Chinese** gloss; add `explanationEn: String` (English
@@ -140,13 +140,13 @@ Stored on `VocabularyEntry` as `collocations: [Collocation] = []`.
 
 ## Testing
 
-- **KaiAI** (`GeneratedCardTests`): extend the decode fixture with `explanationEn` and a
+- **KakeraAI** (`GeneratedCardTests`): extend the decode fixture with `explanationEn` and a
   `collocations` entry; assert they decode. Keep the existing "roots optional" test.
 - **App** (`AICardMapperTests`): assert `explanationEn` and `collocations` map onto
   `VocabularyEntry`.
-- **KaiCore** (simulator suite): a small test that appending and removing an `Annotation`
+- **KakeraCore** (simulator suite): a small test that appending and removing an `Annotation`
   on a persisted `VocabularyEntry` round-trips.
-- Full app suite + KaiCore (simulator) + KaiAI/KaiFSRS/KaiServices (`swift test`) stay green.
+- Full app suite + KakeraCore (simulator) + KakeraAI/KakeraFSRS/KakeraServices (`swift test`) stay green.
 
 ## Open questions
 

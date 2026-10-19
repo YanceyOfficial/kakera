@@ -1,0 +1,12 @@
+{
+  "$comment": "Screenshots for the page: `bun run shots ../screenshots` turns <name>.png there into public/shots/<name>.webp, and <name>-dark.png into <name>-dark.webp. Optional per name: from (another capture), extract (a crop in the capture's pixels) and width (the largest width kept). Captures are iPhone 17 Pro portrait, 1206×2622.",
+  "onboarding": { "width": 900 },
+  "review": { "width": 900 },
+  "revealed": { "width": 900 },
+  "revealed-ja": { "width": 900 },
+  "detail": { "width": 900 },
+  "words": { "width": 900 },
+  "stats": { "width": 900 },
+  "story": { "width": 900 },
+  "settings": { "width": 900 }
+}

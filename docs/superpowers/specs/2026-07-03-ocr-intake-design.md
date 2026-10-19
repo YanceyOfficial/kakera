@@ -11,7 +11,7 @@ snap or pick an image, recognize the text, choose which words to keep, and run t
 through the existing AI card generation. The Vision kernel already exists and is tested;
 this is the UI + wiring to "continue" it.
 
-## Existing building blocks (KaiServices)
+## Existing building blocks (KakeraServices)
 
 - `TextRecognizer` protocol + `VisionTextRecognizer` — `recognizeLines(in imageData: Data)
   async throws -> [String]` (Vision, accurate, language-corrected).
@@ -69,7 +69,7 @@ same (chunked, best-effort) generation path. No new screen or tab.
 - **App suite:** `AICardMapper` gains a case asserting `source: .ocr` propagates onto the
   entry (and that the default stays `.single`).
 - `VisionTextRecognizer`, `CameraPicker`, and the Scan UI are compiled but not unit-tested,
-  per the KaiServices "protocol + pure logic tested + thin platform adapter compiled" pattern.
+  per the KakeraServices "protocol + pure logic tested + thin platform adapter compiled" pattern.
 - Manual: pick a screenshot in the simulator → candidates appear → select → generate.
 
 ## Non-goals

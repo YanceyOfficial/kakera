@@ -16,15 +16,15 @@ Two related pieces of user-facing robustness:
 
 ## Existing building blocks
 
-- `KaiServices.AppLogger` (struct facade) writes to an injectable `LogSink`; `OSLogSink`
+- `KakeraServices.AppLogger` (struct facade) writes to an injectable `LogSink`; `OSLogSink`
   is the production sink. Call sites currently do `AppLogger(sink: OSLogSink())` ad hoc
   (`ReviewStore`, `QuizStore`).
-- `KaiUI.KaiToast` + `View.kaiToast(_:isPresented:)` — a per-view ink pill with a
+- `KakeraUI.KakeraToast` + `View.kakeraToast(_:isPresented:)` — a per-view ink pill with a
   `Bool` binding, used for "deck complete".
 
 ## Design
 
-### 1. Log collection (KaiServices)
+### 1. Log collection (KakeraServices)
 
 **`LogRecord`** — a value type describing one captured log line:
 
@@ -47,7 +47,7 @@ persists to disk:
 - In-memory ring buffer of the last `capacity` (default 1000) `LogRecord`s — the source of
   truth for the viewer.
 - Mirrors to a capped **rolling file** (line-delimited JSON) in Application Support
-  (`Kai/diagnostics.log`). Behavior: on init, load the file into the ring (keeping the last
+  (`Kakera/diagnostics.log`). Behavior: on init, load the file into the ring (keeping the last
   `capacity`); on `write`, append the record and, when the file grows past `2 × capacity`
   lines, rewrite it from the trimmed ring. This bounds file size without per-write rewrites.
 - API: `snapshot(minLevel:) -> [LogRecord]` (newest-first), `clear()` (empties ring + file),
@@ -69,22 +69,22 @@ public enum AppLog {
 `ReviewStore` / `QuizStore` (and future call sites) use `AppLog.shared` instead of
 `AppLogger(sink: OSLogSink())`, so all logs are collected.
 
-### 2. App-wide toasts (KaiUI + app)
+### 2. App-wide toasts (KakeraUI + app)
 
-**`KaiUI`** — extend the toast with a style:
+**`KakeraUI`** — extend the toast with a style:
 
 ```swift
-public enum KaiToastStyle { case success, error }
+public enum KakeraToastStyle { case success, error }
 ```
 
-`KaiToast` renders `success` as the current ink pill with a `checkmark` glyph, and `error`
-as a red pill (new `KaiColor.danger`) with an `exclamationmark.triangle` glyph.
+`KakeraToast` renders `success` as the current ink pill with a `checkmark` glyph, and `error`
+as a red pill (new `KakeraColor.danger`) with an `exclamationmark.triangle` glyph.
 
 **App** — `ToastCenter` drives a single root overlay:
 
 ```swift
 @MainActor @Observable final class ToastCenter {
-    struct Item: Identifiable { let id = UUID(); let message: String; let style: KaiToastStyle }
+    struct Item: Identifiable { let id = UUID(); let message: String; let style: KakeraToastStyle }
     private(set) var current: Item?
     func show(_ message: String)   // success/info
     func error(_ message: String)  // error style; also AppLog.shared.error(...)
@@ -118,13 +118,13 @@ as a red pill (new `KaiColor.danger`) with an `exclamationmark.triangle` glyph.
 
 ## Testing
 
-- **KaiServices** (`swift test`): `LogCollector` writes → `snapshot` returns capped,
+- **KakeraServices** (`swift test`): `LogCollector` writes → `snapshot` returns capped,
   newest-first; `clear()` empties; `exportText()` contains the messages; persistence —
   a collector pointed at a temp dir reloads its records after re-init. `FanoutLogSink`
   forwards to all sinks (assert via a capturing test sink).
 - **App suite** (simulator): a `ToastCenter` unit test — `show`/`error` set `current` with the
   right style and `error` logs a record.
-- Full app suite + KaiCore (simulator) + KaiAI/KaiFSRS/KaiServices stay green.
+- Full app suite + KakeraCore (simulator) + KakeraAI/KakeraFSRS/KakeraServices stay green.
 
 ## Non-goals
 

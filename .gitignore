@@ -78,3 +78,16 @@ buildServer.json
 .build/
 Packages/**/.build/
 .swiftpm/
+
+# Website (website/, bun + TanStack Start)
+website/node_modules/
+website/.output/
+website/.vinxi/
+website/.nitro/
+website/.tanstack/
+website/dist/
+.vercel
+.env
+.env.*
+!.env.example
+.playwright-mcp/

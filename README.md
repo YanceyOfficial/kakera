@@ -1,4 +1,7 @@
-# Kai (甲斐)
+# Kakera (欠片)
+
+*Kakera* is Japanese for "fragment". Every flashcard is one small piece of knowledge;
+reviewed over time, the pieces fit together into a whole command of the language.
 
 A native Apple flashcard app for memorizing difficult vocabulary — in English and
 Japanese, one deck each, with furigana over every Japanese sentence — built around **on-device AI card generation** and a **scientific spaced-repetition
@@ -13,9 +16,9 @@ when** so you spend effort exactly where memory is about to fail.
 
 <table>
   <tr>
-    <td align="center"><img src="screenshots/onboarding.png" width="230" alt="Onboarding" /><br><sub>Onboarding</sub></td>
     <td align="center"><img src="screenshots/review.png" width="230" alt="Review — flip card" /><br><sub>Review — flip card</sub></td>
     <td align="center"><img src="screenshots/revealed.png" width="230" alt="Revealed card" /><br><sub>Revealed — meaning, examples, FSRS intervals</sub></td>
+    <td align="center"><img src="screenshots/revealed-ja-dark.png" width="230" alt="Japanese card with furigana" /><br><sub>Japanese — furigana over every sentence</sub></td>
   </tr>
   <tr>
     <td align="center"><img src="screenshots/words.png" width="230" alt="Words list" /><br><sub>Words — search & tags</sub></td>
@@ -23,19 +26,23 @@ when** so you spend effort exactly where memory is about to fail.
     <td align="center"><img src="screenshots/stats.png" width="230" alt="Stats — forgetting curve" /><br><sub>Stats — forgetting curve & maturity</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="screenshots/settings.png" width="230" alt="Settings" /><br><sub>Settings</sub></td>
-    <td></td>
-    <td></td>
+    <td align="center"><img src="screenshots/story-dark.png" width="230" alt="Daily story" /><br><sub>Daily story</sub></td>
+    <td align="center"><img src="screenshots/onboarding.png" width="230" alt="Onboarding" /><br><sub>Onboarding</sub></td>
+    <td align="center"><img src="screenshots/settings-dark.png" width="230" alt="Settings" /><br><sub>Settings</sub></td>
   </tr>
 </table>
+
+Every screen is also captured in the other appearance (`<name>-dark.png`). They come from
+`scripts/screenshots.sh`, which runs `KakeraUITests` on a simulator over a demo deck — never
+by hand. The website lives in [`website/`](website/) (https://kakera.yancey.app).
 
 ---
 
 ## The memory algorithm (FSRS-6)
 
-Kai schedules reviews with **FSRS-6** (Free Spaced Repetition Scheduler), a modern,
+Kakera schedules reviews with **FSRS-6** (Free Spaced Repetition Scheduler), a modern,
 open, empirically-validated successor to SM-2/Anki. Our implementation lives in the
-dependency-free `KaiFSRS` package and is validated against the reference `ts-fsrs`.
+dependency-free `KakeraFSRS` package and is validated against the reference `ts-fsrs`.
 
 ### Memory model: three numbers per word
 
@@ -62,7 +69,7 @@ and used to compute the "at-risk in 7 days" count.
 ### From a rating to a schedule
 
 After seeing the answer you self-rate **Again / Hard / Good / Easy** (grades 1–4). The
-scheduler (`KaiFSRS.FSRSScheduler.review`) then:
+scheduler (`KakeraFSRS.FSRSScheduler.review`) then:
 
 1. **New word** → seed from the grade: `S₀(g) = w[g−1]`,
    `D₀(g) = clamp(w[4] − e^(w[5]·(g−1)) + 1, 1…10)`.
@@ -80,7 +87,7 @@ scheduler (`KaiFSRS.FSRSScheduler.review`) then:
    (`requestRetention = 0.9`): `I(S) = (S/factor)·(0.9^(1/decay) − 1)`, clamped to
    `[1, 36500]` days.
 
-`KaiCore.ReviewScheduler` bridges this pure algorithm to the persisted
+`KakeraCore.ReviewScheduler` bridges this pure algorithm to the persisted
 `SchedulingState` (stability, difficulty, due date, last review, reps, lapses, learning
 state). It is pure and deterministic — the caller passes `now` and persists the result.
 
@@ -131,9 +138,10 @@ Review sessions cap due words at 100 (most-overdue first) so a backlog stays bou
 - **Retention target is fixed at 0.9** and not user-tunable.
 - **Weights are the stock FSRS-6 defaults — not personalized.** A per-user optimizer that
   fits weights from review history is planned but not built.
-- **Forgetting-push notifications exist in `KaiServices` but aren't wired into the app yet.**
-- **No iCloud sync.** Data is on-device only (the models are CloudKit-compatible, but sync
-  is off), so deleting the app loses the deck.
+- **Forgetting-push notifications exist in `KakeraServices` but aren't wired into the app yet.**
+- **iCloud sync covers the deck, not the settings.** Words, reviews and stories mirror to the
+  person's private CloudKit database; preferences (new words per session, accent, AI provider)
+  stay per device, and the API key never leaves the Keychain.
 
 ---
 
@@ -142,16 +150,17 @@ Review sessions cap due words at 100 (most-overdue first) so a backlog stays bou
 Organized per the Tuist standard template (`Project.swift` + `Tuist/`); the Xcode
 workspace is generated (`tuist generate`), not committed.
 
-- **`kai-ios/`** — the SwiftUI app (module `KaiIos`, bundle `dev.tuist.kai-ios`, iOS 17+).
+- **`kakera/`** — the SwiftUI app (module `Kakera`, bundle `app.yancey.kakera`, iOS 17+).
 - **`Packages/`** — local Swift packages (the kernel, no UI):
-  - **`KaiCore`** — SwiftData models, value types, `VocabularyRepository`, and
-    `ReviewScheduler` (bridges `SchedulingState` ↔ FSRS). CloudKit-compatible modeling.
-  - **`KaiFSRS`** — the pure FSRS-6 algorithm. Zero dependencies. Validated against ts-fsrs.
-  - **`KaiAI`** — `LLMProvider` (Claude / OpenAI) over `URLSession` with structured output;
+  - **`KakeraCore`** — SwiftData models, value types, `VocabularyRepository`, and
+    `ReviewScheduler` (bridges `SchedulingState` ↔ FSRS). Synced through CloudKit; twins that
+    sync creates are merged by `VocabularyRepository.mergeDuplicates()`.
+  - **`KakeraFSRS`** — the pure FSRS-6 algorithm. Zero dependencies. Validated against ts-fsrs.
+  - **`KakeraAI`** — `LLMProvider` (Claude / OpenAI) over `URLSession` with structured output;
     generates cards, batched, and the daily story. Produces Codable DTOs, not SwiftData.
-  - **`KaiServices`** — logging + in-app diagnostics, Keychain, notification scheduling,
+  - **`KakeraServices`** — logging + in-app diagnostics, Keychain, notification scheduling,
     pronunciation, and (formerly) Vision OCR. Protocol + pure logic + thin platform adapter.
-  - **`KaiUI`** — the design system (Ink & Paper palette + Tokiwa green accent) and shared
+  - **`KakeraUI`** — the design system (Ink & Paper palette + Tokiwa green accent) and shared
     components (flip card, rating bar, toast).
 
 The app is a `MainTabView` shell — **Review / Words / Stats / Settings** — over one
@@ -168,22 +177,22 @@ if needed.
 tuist generate                     # generate the Xcode workspace (after clone / manifest edits)
 
 # Build & run in the simulator
-xcodebuild build -workspace kai-ios.xcworkspace -scheme kai-ios \
+xcodebuild build -workspace kakera.xcworkspace -scheme Kakera \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 
 # Pure packages run on macOS (fast, no simulator)
-swift test --package-path Packages/KaiFSRS
-swift test --package-path Packages/KaiAI
-swift test --package-path Packages/KaiServices
+swift test --package-path Packages/KakeraFSRS
+swift test --package-path Packages/KakeraAI
+swift test --package-path Packages/KakeraServices
 
-# KaiCore and the app suite MUST run on the iOS Simulator (SwiftData #Predicate)
-(cd Packages/KaiCore && xcodebuild test -scheme KaiCore \
+# KakeraCore and the app suite MUST run on the iOS Simulator (SwiftData #Predicate)
+(cd Packages/KakeraCore && xcodebuild test -scheme KakeraCore \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro')
-xcodebuild test -workspace kai-ios.xcworkspace -scheme kai-ios \
+xcodebuild test -workspace kakera.xcworkspace -scheme Kakera \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
 ```
 
 ## Status
 
-Kernel and app green: KaiCore 22 · KaiFSRS 23 · KaiAI 27 · KaiServices 24 · app 37.
-On-device only (no iCloud sync yet). Design specs live in `docs/superpowers/specs/`.
+Kernel and app green: KakeraCore 30 · KakeraFSRS 23 · KakeraAI 27 · KakeraServices 24 · app 43.
+Synced through the person's private iCloud (CloudKit) database. Design specs live in `docs/superpowers/specs/`.

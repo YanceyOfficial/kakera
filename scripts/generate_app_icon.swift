@@ -1,4 +1,4 @@
-// Generates Kai's app icon and launch screen assets from one geometry:
+// Generates Kakera's app icon and launch screen assets from one geometry:
 //
 // - `AppIcon.icon` — an Icon Composer document (SVG layers + `icon.json`). Xcode 26
 //   compiles it (Liquid Glass on iOS 26+, the flat PNGs older iOS needs).
@@ -6,16 +6,16 @@
 //   (light and dark; actool cannot read these SVGs), which `UILaunchScreen` shows
 //   centred; `LaunchSplash` in the app picks up from that exact frame.
 // - `Assets.xcassets/LaunchBackground.colorset` — the launch screen's background, the
-//   app's own (`KaiColor.washi`).
+//   app's own (`KakeraColor.washi`).
 //
 // The mark is a "sliced sun": a Tokiwa-green (常磐色) sun cut by four widening
-// lines above a horizon — the effort, and the result coming up over it (甲斐,
-// "worth it"). Every band is a plain path (the circle clipped between two
-// horizontals, computed below), not an SVG mask, so Icon Composer can render
-// each layer. `KaiMark` in KaiUI draws the same geometry in SwiftUI; keep the two
+// lines above a horizon — a whole made of fragments (欠片, "kakera"): each band is
+// one card, and together they make the sun. Every band is a plain path (the circle
+// clipped between two horizontals, computed below), not an SVG mask, so Icon Composer can render
+// each layer. `KakeraMark` in KakeraUI draws the same geometry in SwiftUI; keep the two
 // in step.
 //
-// Usage: swift scripts/generate_app_icon.swift kai-ios/Resources
+// Usage: swift scripts/generate_app_icon.swift kakera/Resources
 
 import AppKit
 import Foundation
@@ -139,11 +139,11 @@ print("wrote \(out.path)")
 
 // MARK: Launch screen
 
-/// The launch mark's point size: `LaunchSplash` draws `KaiMark(height:)` at the same height.
+/// The launch mark's point size: `LaunchSplash` draws `KakeraMark(height:)` at the same height.
 let launchHeight = 84.0
 let markBox = (x: 170.0, y: 298.0, width: 684.0, height: 522.0)
 
-/// The mark alone, flat (the accent and the text colour, as `KaiMark` draws it), cropped
+/// The mark alone, flat (the accent and the text colour, as `KakeraMark` draws it), cropped
 /// to its own bounds, as a transparent PNG `launchHeight` points tall at `scale`.
 func launchMarkPNG(sun: NSColor, horizonColour: NSColor, scale: Double) -> Data {
     let unit = launchHeight * scale / markBox.height
@@ -184,7 +184,7 @@ let catalog = resources.appendingPathComponent("Assets.xcassets")
 let imageset = catalog.appendingPathComponent("LaunchMark.imageset")
 try? FileManager.default.removeItem(at: imageset)
 try FileManager.default.createDirectory(at: imageset, withIntermediateDirectories: true)
-// KaiColor.accent and KaiColor.sumi, light and dark.
+// KakeraColor.accent and KakeraColor.sumi, light and dark.
 let darkAppearance: [[String: String]] = [["appearance": "luminosity", "value": "dark"]]
 var images: [[String: Any]] = []
 for (suffix, sun, line, dark) in [("", srgb(0x1B813E), srgb(0x1A1A1E), false), ("-dark", srgb(0x23A750), srgb(0xF3F3F6), true)] {
@@ -214,7 +214,7 @@ func colourEntry(_ hex: UInt32, dark: Bool) -> [String: Any] {
 }
 let colorset = catalog.appendingPathComponent("LaunchBackground.colorset")
 try FileManager.default.createDirectory(at: colorset, withIntermediateDirectories: true)
-// KaiColor.washi.
+// KakeraColor.washi.
 let colorsetJSON: [String: Any] = [
     "colors": [colourEntry(0xF2F2F6, dark: false), colourEntry(0x111113, dark: true)],
     "info": ["author": "xcode", "version": 1],

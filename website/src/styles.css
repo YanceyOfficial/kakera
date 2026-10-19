@@ -1,0 +1,430 @@
+@import 'tailwindcss';
+
+/*
+ * Ink and paper, as the app: a neutral sheet, near-black type, and one colour — Tokiwa green (常磐色), the app's
+ * accent and its sun. Red appears only where the app uses it, on "Again". Headings and every word on show are set in
+ * a mincho (Zen Old Mincho), as a dictionary sets its headwords; the rest is Instrument Sans.
+ * Dark (`data-theme="dark"` on <html>, set before paint by THEME_SCRIPT) mirrors KakeraColor's dark values.
+ */
+@theme {
+  --color-paper: #f7f7f5;
+  --color-sheet: #ffffff;
+  --color-ink: #1a1a1e;
+  --color-muted: #63636b;
+  --color-rule: #e1e1e5;
+  --color-tokiwa: #1b813e;
+  --color-again: #c2383a;
+
+  --font-sans: 'Instrument Sans Variable', 'Hiragino Sans', 'Noto Sans JP', system-ui, sans-serif;
+  --font-mincho: 'Zen Old Mincho', 'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif JP', serif;
+}
+
+:root[data-theme='dark'] {
+  --color-paper: #141416;
+  --color-sheet: #1d1d20;
+  --color-ink: #f3f3f6;
+  --color-muted: #9d9da5;
+  --color-rule: #2c2c31;
+  --color-tokiwa: #23a750;
+  --color-again: #e5534b;
+}
+
+@layer base {
+  html {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    margin: 0;
+    /* The scenes slide things sideways; clip (not hidden) keeps the pinned ones sticky. */
+    overflow-x: clip;
+  }
+  a {
+    color: inherit;
+  }
+  :focus-visible {
+    outline: 3px solid var(--color-tokiwa);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--color-tokiwa) 28%, transparent);
+  }
+}
+
+@layer components {
+  .wrap {
+    width: min(100% - 2rem, 70rem);
+    margin-inline: auto;
+  }
+  .mincho {
+    font-family: var(--font-mincho);
+    font-feature-settings: 'palt';
+  }
+
+  /* The sliced sun. */
+  .mark .mark-band {
+    fill: var(--color-tokiwa);
+  }
+  .mark .mark-horizon {
+    fill: var(--color-ink);
+  }
+  /* The page's one moment of motion: the five bands come in from alternate sides and close into the sun. */
+  @media (prefers-reduced-motion: no-preference) {
+    .mark-assemble .mark-band {
+      animation: band-in 1100ms cubic-bezier(0.22, 1, 0.36, 1) both;
+      animation-delay: calc(180ms + var(--i) * 110ms);
+    }
+    .mark-assemble .mark-band:nth-child(odd) {
+      --from: -46px;
+    }
+    .mark-assemble .mark-band:nth-child(even) {
+      --from: 46px;
+    }
+    .mark-assemble .mark-horizon {
+      animation: horizon-in 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+      transform-origin: center;
+      transform-box: fill-box;
+    }
+    @keyframes band-in {
+      from {
+        opacity: 0;
+        transform: translateX(var(--from));
+      }
+    }
+    @keyframes horizon-in {
+      from {
+        transform: scaleX(0.2);
+        opacity: 0;
+      }
+    }
+  }
+
+  /* An iPhone screen: the display's own corner radius, a hairline so a light shot holds its edge on paper. */
+  .shot {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 13.5% / 6.2%;
+    box-shadow:
+      0 0 0 1px var(--color-rule),
+      0 30px 60px -30px rgb(0 0 0 / 0.28);
+    background: var(--color-sheet);
+  }
+  .shot.only-dark {
+    display: none;
+  }
+  :root[data-theme='dark'] .shot.only-dark {
+    display: block;
+  }
+  :root[data-theme='dark'] .shot.only-light {
+    display: none;
+  }
+
+  /* Furigana as the app sets them: the reading small and quiet above the kanji. */
+  .ruby rt {
+    font-family: var(--font-sans);
+    font-size: 0.42em;
+    font-weight: 500;
+    color: var(--color-muted);
+    letter-spacing: 0.04em;
+  }
+
+  /* The four grades, as the review screen's rating bar shows them. */
+  .grade {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.15rem;
+    border-radius: 14px;
+    padding: 0.7rem 0.4rem;
+    background: color-mix(in srgb, var(--color-ink) 6%, transparent);
+    font-weight: 600;
+  }
+  .grade small {
+    font-weight: 500;
+    font-size: 13px;
+    color: var(--color-muted);
+  }
+  .grade.again {
+    color: var(--color-again);
+    background: color-mix(in srgb, var(--color-again) 11%, transparent);
+  }
+  .grade.good {
+    color: var(--color-sheet);
+    background: var(--color-tokiwa);
+  }
+  .grade.good small {
+    color: color-mix(in srgb, var(--color-sheet) 80%, transparent);
+  }
+
+  /* A dictionary entry set as a sheet of paper. */
+  .entry {
+    background: var(--color-sheet);
+    border: 1px solid var(--color-rule);
+    border-radius: 20px;
+  }
+  .entry dt {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-tokiwa);
+  }
+  .entry dd {
+    margin: 0.25rem 0 0;
+    line-height: 1.6;
+  }
+
+  /* Light, dark or the system's: three keys in one pill, the chosen one filled. */
+  .theme-switch {
+    display: inline-flex;
+    border-radius: 999px;
+    padding: 3px;
+    background: color-mix(in srgb, var(--color-ink) 7%, transparent);
+  }
+  .theme-switch button {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--color-muted);
+    cursor: pointer;
+    transition:
+      background-color 150ms ease-out,
+      color 150ms ease-out;
+  }
+  .theme-switch button[aria-checked='true'] {
+    background: var(--color-sheet);
+    color: var(--color-ink);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.15);
+  }
+
+  .button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: 999px;
+    background: var(--color-ink);
+    color: var(--color-paper);
+    padding: 0.7rem 1.15rem 0.7rem 0.95rem;
+    font-weight: 600;
+    font-size: 15px;
+    text-decoration: none;
+    transition: background-color 150ms ease-out;
+  }
+  .button:hover {
+    background: var(--color-tokiwa);
+  }
+  .button[aria-disabled='true'] {
+    cursor: default;
+    background: transparent;
+    color: var(--color-ink);
+    box-shadow: inset 0 0 0 1.5px var(--color-rule);
+  }
+
+  /* Long-form text: the privacy policy. */
+  .prose-page h2 {
+    font-family: var(--font-mincho);
+    font-weight: 700;
+    font-size: 1.5rem;
+    line-height: 1.3;
+    margin: 2.75rem 0 0.75rem;
+  }
+  .prose-page p,
+  .prose-page li {
+    line-height: 1.7;
+    color: var(--color-muted);
+  }
+  .prose-page p + p {
+    margin-top: 0.9rem;
+  }
+  .prose-page strong {
+    color: var(--color-ink);
+    font-weight: 600;
+  }
+  .prose-page ul {
+    margin: 0.75rem 0 0;
+    padding-left: 1.2rem;
+    list-style: disc;
+  }
+  .prose-page li + li {
+    margin-top: 0.5rem;
+  }
+  .prose-page a {
+    color: var(--color-tokiwa);
+    text-underline-offset: 3px;
+  }
+}
+
+/*
+ * Scroll scenes, as Apple's product pages play them: pinned stretches driven by `--p` (0 → 1, written by
+ * useScrollProgress in scroll.ts), and elements that move with their own pass through the viewport (CSS scroll-driven
+ * animations, where supported). Only transform and opacity move. With reduced motion every scene is a still layout.
+ */
+@layer components {
+  /* The opening: the copy lifts away while the phone rises from below the fold to the middle. */
+  .hero {
+    --p: 0;
+    position: relative;
+    height: 200svh;
+  }
+  .hero-stage {
+    position: sticky;
+    top: 0;
+    height: 100svh;
+    overflow: hidden;
+  }
+  .hero-copy {
+    padding-top: clamp(2rem, 7svh, 5rem);
+    text-align: center;
+    opacity: calc(1 - var(--p) * 2.2);
+    transform: translateY(calc(var(--p) * -14svh)) scale(calc(1 - var(--p) * 0.06));
+    will-change: transform, opacity;
+  }
+  /* Starts under the copy, its top just in view; rises by most of its own height. */
+  .hero-phone {
+    width: min(19rem, 70vw, 36svh);
+    margin: 3rem auto 0;
+    transform: translateY(calc(var(--p) * -76%)) scale(calc(0.92 + var(--p) * 0.1));
+    transform-origin: 50% 0;
+    will-change: transform;
+  }
+
+  /* The tour: captions scroll past a pinned phone whose screen follows them. */
+  .tour {
+    display: grid;
+    padding-bottom: 6rem;
+  }
+  .tour-steps {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .tour-step {
+    padding-top: 4rem;
+  }
+  .tour-pin {
+    display: none;
+  }
+  @media (min-width: 48rem) {
+    .tour {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 22rem);
+      column-gap: 4rem;
+      padding-bottom: 0;
+    }
+    .tour-step {
+      display: flex;
+      align-items: center;
+      min-height: 100svh;
+      padding: 0;
+      opacity: 0.22;
+      transition: opacity 400ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .tour-step.active {
+      opacity: 1;
+    }
+    .tour-inline {
+      display: none;
+    }
+    .tour-pin {
+      display: flex;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      height: 100svh;
+    }
+    .tour-phone {
+      position: relative;
+      width: min(19rem, 100%, 40svh);
+      margin-inline: auto;
+      aspect-ratio: 1206 / 2622;
+    }
+    .tour-screen {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transform: scale(0.97);
+      transition:
+        opacity 450ms cubic-bezier(0.22, 1, 0.36, 1),
+        transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .tour-screen.active {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+      /* Text rises into place as it comes on screen. */
+      .reveal {
+        animation: reveal linear both;
+        animation-timeline: view();
+        animation-range: entry 0% cover 28%;
+      }
+      /* Pictures travel a little against the scroll: they sit on a nearer plane than the text. */
+      .drift {
+        animation: drift linear both;
+        animation-timeline: view();
+        animation-range: cover;
+      }
+      /* 木漏れ日 slides across, as light moves through leaves. */
+      .slide-x {
+        animation: slide-x linear both;
+        animation-timeline: view();
+        animation-range: cover;
+      }
+    }
+  }
+  @keyframes reveal {
+    from {
+      opacity: 0;
+      transform: translateY(48px);
+    }
+  }
+  @keyframes drift {
+    from {
+      transform: translateY(80px);
+    }
+    to {
+      transform: translateY(-80px);
+    }
+  }
+  @keyframes slide-x {
+    from {
+      transform: translateX(-10%);
+    }
+    to {
+      transform: translateX(8%);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero {
+      height: auto;
+    }
+    .hero-stage {
+      position: static;
+      height: auto;
+      overflow: visible;
+    }
+    .hero-copy {
+      opacity: 1;
+      transform: none;
+    }
+    .hero-phone {
+      transform: none;
+      margin-bottom: 4rem;
+    }
+    .tour-step,
+    .tour-screen {
+      transition: opacity 200ms ease;
+      transform: none;
+    }
+  }
+}

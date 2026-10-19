@@ -15,7 +15,7 @@ Review screen; format = English passage + tap-to-card + Chinese toggle.
 
 ## Design
 
-### KaiAI — story generation
+### KakeraAI — story generation
 
 - **`GeneratedStory`** DTO: `{ story: String, translation: String }` (English passage +
   Chinese translation).
@@ -30,7 +30,7 @@ Review screen; format = English passage + tap-to-card + Chinese toggle.
   `generateCards` and `generateStory` both call it with their schema/prompt. The existing
   provider tests guard the refactor.
 
-### KaiCore — caching
+### KakeraCore — caching
 
 - **`DailyStory`** `@Model` (CloudKit-safe: defaults, no `.unique`):
   `{ id: UUID, day: Date (start of day), languageRaw, text, translation, wordLemmas:
@@ -54,7 +54,7 @@ Review screen; format = English passage + tap-to-card + Chinese toggle.
 - **`StoryView`**:
   - Renders `text` as an `AttributedString`: each occurrence of a target word (case-
     insensitive, word-boundary) is styled (vermilion, semibold) and given a
-    `kai://word/<lemma>` link. An `openURL` handler resolves the lemma → entry ID and pushes
+    `kakera://word/<lemma>` link. An `openURL` handler resolves the lemma → entry ID and pushes
     `WordDetailView` in a `NavigationStack`.
   - A `文/A` toggle reveals/hides the Chinese `translation`.
   - Regenerate button; loading spinner; `empty` ("No words due today"), `needsKey` ("Add an
@@ -64,10 +64,10 @@ Review screen; format = English passage + tap-to-card + Chinese toggle.
 
 ## Testing
 
-- **KaiAI** (`swift test`): `GeneratedStory` decodes; `PromptBuilder` story prompt names the
+- **KakeraAI** (`swift test`): `GeneratedStory` decodes; `PromptBuilder` story prompt names the
   words and asks for a translation; `ClaudeProvider`/`OpenAIProvider` `generateStory` decode
   via a stub transport; existing card tests still pass (guarding the refactor).
-- **KaiCore** (simulator): a `DailyStory` upsert replaces the same-day entry and fetch
+- **KakeraCore** (simulator): a `DailyStory` upsert replaces the same-day entry and fetch
   returns it.
 - **App** (simulator): `StoryStore` — with a stub provider, empty due set → `empty`; missing
   key → `needsKey`; a successful generate → `ready` with the word→entry map populated.

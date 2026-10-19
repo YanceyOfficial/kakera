@@ -13,7 +13,7 @@ most habit-forming UX.)
 
 ## Design
 
-### KaiServices — daily reminder scheduling
+### KakeraServices — daily reminder scheduling
 
 A thin platform adapter behind a protocol (matches the existing notification pattern):
 
@@ -29,7 +29,7 @@ public protocol DailyReminderScheduling: Sendable {
 **`UNDailyReminderScheduler`** backs it with `UNUserNotificationCenter`:
 - `requestAuthorization` → `center.requestAuthorization([.alert, .sound, .badge])`.
 - `scheduleDaily` → cancel the existing reminder, then add a `UNCalendarNotificationTrigger`
-  (hour/minute, `repeats: true`) under the fixed id `kai.daily-reminder`, with content
+  (hour/minute, `repeats: true`) under the fixed id `kakera.daily-reminder`, with content
   Title "Time to review", Body "Keep your words fresh — a quick review now."
 - `cancel` → remove the pending request with that id.
 

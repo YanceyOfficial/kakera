@@ -1,0 +1,472 @@
+import SwiftUI
+import KakeraCore
+import KakeraAI
+import KakeraServices
+import KakeraUI
+
+/// A word's detail page: every field laid out directly (no flip card — the list row
+/// already shows the word and meaning, so this is the full reference). Reading text is
+/// `RubyText`, so a long press selects it for Copy, Look Up, Translate.
+struct WordDetailView: View {
+    let entry: VocabularyEntry
+
+    @Environment(\.modelContext) private var modelContext
+    @Environment(ToastCenter.self) private var toast
+    @State private var pronouncer = PronunciationPlayer()
+    @AppStorage("pronunciationAccent") private var accentRaw = Accent.us.rawValue
+    private var accent: Accent { Accent(rawValue: accentRaw) ?? .us }
+
+    /// Presents the "add note" sheet and holds its draft text.
+    @State private var showingAddNote = false
+    @State private var newNoteText = ""
+
+    /// Add-tag alert state.
+    @State private var showingAddTag = false
+    @State private var newTag = ""
+    @FocusState private var tagFieldFocused: Bool
+
+    /// Tap-through: navigate to a related word, or offer to add one that's not in the deck.
+    @State private var linkedLemma: String?
+    @State private var addCandidate: String?
+    @State private var adding = false
+
+    private var repository: VocabularyRepository { VocabularyRepository(context: modelContext) }
+
+    var body: some View {
+        List {
+            headerSection
+            meaningSection
+
+            if !entry.examples.isEmpty {
+                Section("Examples") {
+                    ForEach(Array(entry.examples.enumerated()), id: \.offset) { _, example in
+                        VStack(alignment: .leading, spacing: KakeraSpacing.xs) {
+                            RubyText(example.sentence, size: 16)
+                            if !example.translation.isEmpty {
+                                RubyText(example.translation, size: 14, color: KakeraColor.inkSecondary)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+                .listRowBackground(KakeraColor.cardFace)
+            }
+
+            similarWordsSection
+            collocationsSection
+            notesSection
+            tagsSection
+            annotationsSection
+            schedulingSection
+        }
+        .scrollContentBackground(.hidden)
+        .background(KakeraColor.washi)
+        .navigationTitle(entry.lemma)
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showingAddNote) { addNoteSheet }
+        // A sheet, like "Add note": iOS 26's text-field alert lets its field run past
+        // the alert's edge.
+        .sheet(isPresented: $showingAddTag) { addTagSheet }
+        .overlay {
+            if adding {
+                ProgressView().tint(KakeraColor.vermilion)
+                    .padding(KakeraSpacing.l)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+            }
+        }
+        .navigationDestination(item: $linkedLemma) { lemma in
+            if let entry = lookup(lemma) {
+                WordDetailView(entry: entry)
+            } else {
+                ContentUnavailableView("Not found", systemImage: "questionmark")
+            }
+        }
+        .confirmationDialog(
+            addCandidate.map { "Add “\($0)” to your deck?" } ?? "",
+            isPresented: Binding(get: { addCandidate != nil }, set: { if !$0 { addCandidate = nil } }),
+            titleVisibility: .visible
+        ) {
+            if let word = addCandidate {
+                Button("Generate & add") { addWord(word) }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+    }
+
+    /// Editable tags for grouping words into simple decks.
+    private var tagsSection: some View {
+        Section("Tags") {
+            if !entry.tags.isEmpty {
+                FlowLayout(spacing: 6) {
+                    ForEach(entry.tags, id: \.self) { tag in
+                        HStack(spacing: 4) {
+                            Text(tag)
+                                .font(KakeraFont.body(14, weight: .medium))
+                                .foregroundStyle(KakeraColor.sumi)
+                            Button { removeTag(tag) } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(KakeraColor.inkSecondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.horizontal, KakeraSpacing.s)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(KakeraColor.washi))
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+            Button { newTag = ""; showingAddTag = true } label: {
+                Label("Add tag", systemImage: "tag")
+                    .font(KakeraFont.body(15, weight: .medium))
+                    .foregroundStyle(KakeraColor.vermilion)
+            }
+        }
+        .listRowBackground(KakeraColor.cardFace)
+    }
+
+    private var addTagSheet: some View {
+        NavigationStack {
+            Form {
+                Section("New tag") {
+                    TextField("e.g. GRE", text: $newTag)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .submitLabel(.done)
+                        .focused($tagFieldFocused)
+                        .onSubmit { addTag() }
+                }
+            }
+            .navigationTitle("Add tag")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showingAddTag = false }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add") { addTag() }
+                        .disabled(newTag.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .task { tagFieldFocused = true }
+        }
+        .presentationDetents([.height(220)])
+    }
+
+    private func addTag() {
+        let tag = newTag.trimmingCharacters(in: .whitespacesAndNewlines)
+        newTag = ""
+        showingAddTag = false
+        guard !tag.isEmpty, !entry.tags.contains(where: { $0.caseInsensitiveCompare(tag) == .orderedSame }) else { return }
+        entry.tags.append(tag)
+        save()
+    }
+
+    private func removeTag(_ tag: String) {
+        entry.tags.removeAll { $0 == tag }
+        save()
+    }
+
+    /// A tappable related word: opens it if it's in the deck, else offers to add it.
+    private func wordChip(_ word: String) -> some View {
+        Button { tapWord(word) } label: {
+            Text(word)
+                .font(KakeraFont.body(15, weight: .medium))
+                .foregroundStyle(KakeraColor.vermilion)
+                .padding(.horizontal, KakeraSpacing.s)
+                .padding(.vertical, 4)
+                .background(Capsule().fill(KakeraColor.vermilion.opacity(0.12)))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func tapWord(_ raw: String) {
+        let word = raw.trimmingCharacters(in: .whitespaces)
+        guard !word.isEmpty else { return }
+        if lookup(word) != nil {
+            linkedLemma = word
+        } else {
+            addCandidate = word
+        }
+    }
+
+    private func lookup(_ lemma: String) -> VocabularyEntry? {
+        (try? repository.entry(lemma: lemma, language: entry.language)) ?? nil
+    }
+
+    private func addWord(_ word: String) {
+        guard AIConfigStore.hasKey else {
+            toast.error("Add an API key in Settings first", category: "words")
+            return
+        }
+        Task { @MainActor in
+            adding = true
+            defer { adding = false }
+            let config: AIConfiguration
+            do { config = try await AIConfigStore.readyConfiguration() }
+            catch {
+                toast.error(error.localizedDescription, category: "ai")
+                return
+            }
+            let outcome = await ProviderFactory.make(config)
+                .generateCards(lemmas: [word], language: entry.language, literaryExamples: false, chunkSize: 1)
+            guard let card = outcome.cards.first else {
+                toast.error("Couldn't add “\(word)”", category: "words")
+                return
+            }
+            _ = try? repository.insertIfAbsent(AICardMapper.entry(from: card, language: entry.language))
+            toast.show("Added “\(card.lemma)”")
+            linkedLemma = card.lemma
+        }
+    }
+
+    // MARK: Sections
+
+    @ViewBuilder
+    private var meaningSection: some View {
+        let en = entry.explanationEn ?? ""
+        if !entry.explanation.isEmpty || !en.isEmpty {
+            Section("Meaning") {
+                VStack(alignment: .leading, spacing: KakeraSpacing.xs) {
+                    if !entry.explanation.isEmpty {
+                        RubyText(entry.explanation, size: 16)
+                    }
+                    if !en.isEmpty {
+                        RubyText(en, size: 15, color: KakeraColor.inkSecondary)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+            .listRowBackground(KakeraColor.cardFace)
+        }
+    }
+
+    private var headerSection: some View {
+        Section {
+            VStack(alignment: .leading, spacing: KakeraSpacing.s) {
+                // Centred: a text view has no baseline to align on. The word takes the
+                // row's width, which keeps the speaker at the trailing edge.
+                HStack(alignment: .center, spacing: KakeraSpacing.s) {
+                    RubyText(entry.lemma, size: 30, weight: .bold, design: .serif)
+                    Button {
+                        KakeraHaptics.impact(.light)
+                        pronouncer.say(entry.lemma, phonetic: entry.phonetic, language: entry.language, accent: accent)
+                    } label: {
+                        Image(systemName: "speaker.wave.2.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(KakeraColor.vermilion)
+                    }
+                    .buttonStyle(KakeraPressStyle())
+                }
+                if !entry.phonetic.isEmpty {
+                    PhoneticText(entry.phonetic, size: 14)
+                        .foregroundStyle(KakeraColor.inkSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if !entry.partsOfSpeech.isEmpty {
+                    Text(entry.partsOfSpeech.joined(separator: " · "))
+                        .font(KakeraFont.body(13, weight: .medium))
+                        .foregroundStyle(KakeraColor.inkSecondary)
+                }
+                if !entry.syllables.isEmpty {
+                    Text(entry.syllables.joined(separator: " · "))
+                        .font(KakeraFont.phonetic(13))
+                        .foregroundStyle(KakeraColor.inkSecondary)
+                }
+            }
+            .padding(.vertical, 2)
+        }
+        .listRowBackground(KakeraColor.cardFace)
+    }
+
+    @ViewBuilder
+    private var similarWordsSection: some View {
+        if !entry.synonymGroups.isEmpty {
+            Section("Similar words") {
+                ForEach(Array(entry.synonymGroups.enumerated()), id: \.offset) { _, group in
+                    VStack(alignment: .leading, spacing: KakeraSpacing.xs) {
+                        Text(group.sense)
+                            .font(KakeraFont.body(13, weight: .semibold))
+                            .foregroundStyle(KakeraColor.inkSecondary)
+                        FlowLayout(spacing: 6) {
+                            ForEach(group.words, id: \.self) { wordChip($0) }
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+            .listRowBackground(KakeraColor.cardFace)
+        }
+    }
+
+    @ViewBuilder
+    private var collocationsSection: some View {
+        if !entry.collocations.isEmpty {
+            Section("Collocations") {
+                ForEach(Array(entry.collocations.enumerated()), id: \.offset) { _, c in
+                    VStack(alignment: .leading, spacing: KakeraSpacing.xs) {
+                        // Bottom-aligned: a phrase with furigana is taller than its gloss.
+                        HStack(alignment: .bottom, spacing: KakeraSpacing.s) {
+                            RubyText(c.phrase, size: 16, weight: .semibold)
+                                .fixedSize()
+                            RubyText(c.meaning, size: 13, color: KakeraColor.inkSecondary)
+                        }
+                        if !c.example.isEmpty {
+                            RubyText(c.example, size: 15)
+                            if !c.exampleTranslation.isEmpty {
+                                RubyText(c.exampleTranslation, size: 13, color: KakeraColor.inkSecondary)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+            .listRowBackground(KakeraColor.cardFace)
+        }
+    }
+
+    @ViewBuilder
+    private var notesSection: some View {
+        let mnemonic = entry.mnemonic ?? ""
+        let etymology = entry.etymology ?? ""
+        let roots = entry.roots ?? ""
+        if !mnemonic.isEmpty || !etymology.isEmpty || !roots.isEmpty || !entry.confusables.isEmpty {
+            Section("Notes") {
+                if !roots.isEmpty { labeled("Roots", roots) }
+                if !mnemonic.isEmpty { labeled("Mnemonic", mnemonic) }
+                if !etymology.isEmpty { labeled("Etymology", etymology) }
+                if !entry.confusables.isEmpty {
+                    VStack(alignment: .leading, spacing: KakeraSpacing.xs) {
+                        Text("Confusables")
+                            .font(KakeraFont.body(11, weight: .semibold))
+                            .foregroundStyle(KakeraColor.vermilion)
+                            .textCase(.uppercase)
+                            .tracking(1.2)
+                        FlowLayout(spacing: 6) {
+                            ForEach(entry.confusables, id: \.self) { wordChip($0) }
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+            .listRowBackground(KakeraColor.cardFace)
+        }
+    }
+
+    /// User-authored notes. Always shown (even when empty) so the "Add note" action is
+    /// discoverable. Notes are sorted newest-first and deletable.
+    private var annotationsSection: some View {
+        Section("Annotations") {
+            ForEach(sortedAnnotations) { note in
+                VStack(alignment: .leading, spacing: KakeraSpacing.xs) {
+                    Text(note.createdAt.formatted(date: .abbreviated, time: .omitted))
+                        .font(KakeraFont.body(11, weight: .semibold))
+                        .foregroundStyle(KakeraColor.inkSecondary)
+                    RubyText(note.text, size: 15)
+                }
+                .padding(.vertical, 2)
+            }
+            .onDelete(perform: deleteAnnotations)
+
+            Button {
+                newNoteText = ""
+                showingAddNote = true
+            } label: {
+                Label("Add note", systemImage: "plus.circle")
+                    .font(KakeraFont.body(15, weight: .medium))
+                    .foregroundStyle(KakeraColor.vermilion)
+            }
+        }
+        .listRowBackground(KakeraColor.cardFace)
+    }
+
+    private var addNoteSheet: some View {
+        NavigationStack {
+            Form {
+                Section("New note") {
+                    TextField("e.g. in slang this means…", text: $newNoteText, axis: .vertical)
+                        .lineLimit(3...6)
+                }
+            }
+            .navigationTitle("Add note")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showingAddNote = false }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { addNote() }
+                        .disabled(newNoteText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    private var schedulingSection: some View {
+        Section("Scheduling") {
+            row("Status", entry.scheduling.state.rawValue.capitalized)
+            row("Reviews", "\(entry.scheduling.reps)")
+            row("Lapses", "\(entry.scheduling.lapses)")
+            row("Due", entry.dueAt.formatted(date: .abbreviated, time: .shortened))
+        }
+        .listRowBackground(KakeraColor.cardFace)
+    }
+
+    // MARK: Annotations
+
+    private var sortedAnnotations: [Annotation] {
+        entry.annotations.sorted { $0.createdAt > $1.createdAt }
+    }
+
+    private func addNote() {
+        let text = newNoteText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        entry.annotations.append(Annotation(text: text))
+        showingAddNote = false
+        if save() { toast.show("Note added") }
+    }
+
+    private func deleteAnnotations(at offsets: IndexSet) {
+        let ids = Set(offsets.map { sortedAnnotations[$0].id })
+        entry.annotations.removeAll { ids.contains($0.id) }
+        if save() { toast.show("Note deleted") }
+    }
+
+    /// Saves and reports failures; returns whether it succeeded.
+    @discardableResult
+    private func save() -> Bool {
+        do { try modelContext.save(); return true }
+        catch {
+            toast.error("Couldn't save — see Diagnostics", category: "words")
+            return false
+        }
+    }
+
+    // MARK: Row builders
+
+    private func labeled(_ title: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: KakeraSpacing.xs) {
+            Text(title)
+                .font(KakeraFont.body(11, weight: .semibold))
+                .foregroundStyle(KakeraColor.vermilion)
+                .textCase(.uppercase)
+                .tracking(1.2)
+            RubyText(value, size: 15)
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func row(_ title: String, _ value: String) -> some View {
+        HStack {
+            Text(title)
+                .font(KakeraFont.body(15))
+                .foregroundStyle(KakeraColor.sumi)
+            Spacer()
+            Text(value)
+                .font(KakeraFont.body(15))
+                .foregroundStyle(KakeraColor.inkSecondary)
+        }
+    }
+}

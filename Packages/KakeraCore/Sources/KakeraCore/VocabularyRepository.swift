@@ -1,0 +1,172 @@
+import Foundation
+import SwiftData
+
+/// Repository protocol for vocabulary entries. Consumers depend on the protocol, not the concrete type, for substitutability and testing.
+public protocol VocabularyRepositoryProtocol {
+    @discardableResult
+    func insertIfAbsent(_ entry: VocabularyEntry) throws -> Bool
+    func entry(lemma: String, language: LanguageDomain) throws -> VocabularyEntry?
+    func entries(for language: LanguageDomain) throws -> [VocabularyEntry]
+    func delete(_ entry: VocabularyEntry) throws
+    func logReview(_ log: ReviewLog) throws
+    func dueEntries(for language: LanguageDomain, asOf now: Date) throws -> [VocabularyEntry]
+    func reviewLogs(entryID: UUID) throws -> [ReviewLog]
+    func allReviewLogs() throws -> [ReviewLog]
+    func dailyStory(for language: LanguageDomain, on day: Date) throws -> DailyStory?
+    func upsertDailyStory(_ story: DailyStory) throws
+}
+
+/// SwiftData-backed vocabulary repository implementation.
+public final class VocabularyRepository: VocabularyRepositoryProtocol {
+    private let context: ModelContext
+
+    public init(context: ModelContext) {
+        self.context = context
+    }
+
+    /// Inserts an entry if no entry with the same lemma (case-insensitive) exists in the same language, returning true; otherwise returns false.
+    @discardableResult
+    public func insertIfAbsent(_ entry: VocabularyEntry) throws -> Bool {
+        if try self.entry(lemma: entry.lemma, language: entry.language) != nil {
+            return false
+        }
+        context.insert(entry)
+        try context.save()
+        return true
+    }
+
+    /// Fetches an entry by normalized lemma and language, returning nil if not found.
+    public func entry(lemma: String, language: LanguageDomain) throws -> VocabularyEntry? {
+        let key = lemma.lowercased()
+        let lang = language.rawValue
+        var descriptor = FetchDescriptor<VocabularyEntry>(
+            predicate: #Predicate { $0.lemmaKey == key && $0.languageRaw == lang }
+        )
+        descriptor.fetchLimit = 1
+        return try context.fetch(descriptor).first
+    }
+
+    /// Fetches all entries for the specified language, sorted by createdAt in ascending order.
+    public func entries(for language: LanguageDomain) throws -> [VocabularyEntry] {
+        let lang = language.rawValue
+        let descriptor = FetchDescriptor<VocabularyEntry>(
+            predicate: #Predicate { $0.languageRaw == lang },
+            sortBy: [SortDescriptor(\.createdAt, order: .forward)]
+        )
+        return try context.fetch(descriptor)
+    }
+
+    public func delete(_ entry: VocabularyEntry) throws {
+        context.delete(entry)
+        try context.save()
+    }
+
+    /// Writes a single review log entry.
+    public func logReview(_ log: ReviewLog) throws {
+        context.insert(log)
+        try context.save()
+    }
+
+    /// Fetches entries for the given language whose due date is not later than `now`, sorted by due date ascending.
+    /// Filters on the top-level `dueAt` mirror (kept in sync with `scheduling.due`), since SwiftData
+    /// `#Predicate` cannot filter on a sub-field of an embedded Codable struct.
+    public func dueEntries(for language: LanguageDomain, asOf now: Date) throws -> [VocabularyEntry] {
+        let lang = language.rawValue
+        let descriptor = FetchDescriptor<VocabularyEntry>(
+            predicate: #Predicate { $0.languageRaw == lang && $0.dueAt <= now },
+            sortBy: [SortDescriptor(\.dueAt, order: .forward)]
+        )
+        return try context.fetch(descriptor)
+    }
+
+    /// Fetches all review logs for a given entry, sorted by timestamp ascending.
+    public func reviewLogs(entryID: UUID) throws -> [ReviewLog] {
+        let descriptor = FetchDescriptor<ReviewLog>(
+            predicate: #Predicate { $0.entryID == entryID },
+            sortBy: [SortDescriptor(\.timestamp, order: .forward)]
+        )
+        return try context.fetch(descriptor)
+    }
+
+    /// Fetches every review log across all entries, sorted by timestamp ascending.
+    /// Used by the statistics dashboard.
+    public func allReviewLogs() throws -> [ReviewLog] {
+        let descriptor = FetchDescriptor<ReviewLog>(
+            sortBy: [SortDescriptor(\.timestamp, order: .forward)]
+        )
+        return try context.fetch(descriptor)
+    }
+
+    /// Returns the cached story for the given day+language, or nil.
+    public func dailyStory(for language: LanguageDomain, on day: Date) throws -> DailyStory? {
+        let start = Calendar.current.startOfDay(for: day)
+        let lang = language.rawValue
+        var descriptor = FetchDescriptor<DailyStory>(
+            predicate: #Predicate { $0.day == start && $0.languageRaw == lang }
+        )
+        descriptor.fetchLimit = 1
+        return try context.fetch(descriptor).first
+    }
+
+    /// Saves `story`, replacing any existing story for the same day+language first, so
+    /// there is at most one per day (regeneration overwrites).
+    public func upsertDailyStory(_ story: DailyStory) throws {
+        if let existing = try dailyStory(for: story.language, on: story.day) {
+            context.delete(existing)
+        }
+        context.insert(story)
+        try context.save()
+    }
+
+    // MARK: iCloud duplicates
+
+    /// Folds together records that iCloud sync made twins of — the same word added (or the starter
+    /// deck seeded) on two devices before they met, or two stories for one day — and returns how many
+    /// were removed. CloudKit has no unique constraints, so this is the dedupe the models promise.
+    ///
+    /// Every device must pick the same survivor or two of them could delete each other's, so the
+    /// survivor depends only on facts that never change: the first-created entry (then the smallest
+    /// id). It takes over its twins' review logs, tags and notes, and the schedule of whichever twin
+    /// was reviewed most; for stories, the newest one stays.
+    @discardableResult
+    public func mergeDuplicates() throws -> Int {
+        var removed = 0
+
+        let entries = try context.fetch(FetchDescriptor<VocabularyEntry>())
+        for twins in Dictionary(grouping: entries, by: { [$0.languageRaw, $0.lemmaKey] }).values where twins.count > 1 {
+            let ordered = twins.sorted { ($0.createdAt, $0.id.uuidString) < ($1.createdAt, $1.id.uuidString) }
+            let keeper = ordered[0]
+            if let mostReviewed = twins.max(by: { Self.progress($0) < Self.progress($1) }),
+               Self.progress(mostReviewed) > Self.progress(keeper) {
+                keeper.reschedule(mostReviewed.scheduling)
+            }
+            for twin in ordered.dropFirst() {
+                let twinID = twin.id
+                let logs = try context.fetch(FetchDescriptor<ReviewLog>(predicate: #Predicate { $0.entryID == twinID }))
+                for log in logs { log.entryID = keeper.id }
+                keeper.tags += twin.tags.filter { !keeper.tags.contains($0) }
+                keeper.annotations += twin.annotations.filter { note in !keeper.annotations.contains { $0.id == note.id } }
+                keeper.isMarked = keeper.isMarked || twin.isMarked
+                context.delete(twin)
+                removed += 1
+            }
+        }
+
+        let stories = try context.fetch(FetchDescriptor<DailyStory>())
+        for twins in Dictionary(grouping: stories, by: { "\($0.languageRaw)|\($0.day.timeIntervalSinceReferenceDate)" }).values where twins.count > 1 {
+            let ordered = twins.sorted { ($0.createdAt, $0.id.uuidString) > ($1.createdAt, $1.id.uuidString) }
+            for twin in ordered.dropFirst() {
+                context.delete(twin)
+                removed += 1
+            }
+        }
+
+        if removed > 0 { try context.save() }
+        return removed
+    }
+
+    /// How far a word's reviews have got: more reviews first, then the later last review.
+    private static func progress(_ entry: VocabularyEntry) -> (Int, Date) {
+        (entry.scheduling.reps, entry.scheduling.lastReview ?? .distantPast)
+    }
+}
