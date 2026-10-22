@@ -220,6 +220,24 @@
   .button:hover {
     background: var(--color-tokiwa);
   }
+  /* Apple's badge, 40pt tall as drawn; black on the light theme, white on the dark. */
+  .app-store-badge {
+    display: inline-block;
+    line-height: 0;
+  }
+  .app-store-badge img {
+    height: 44px;
+    width: auto;
+  }
+  .app-store-badge .only-dark {
+    display: none;
+  }
+  :root[data-theme='dark'] .app-store-badge .only-dark {
+    display: inline;
+  }
+  :root[data-theme='dark'] .app-store-badge .only-light {
+    display: none;
+  }
   .button[aria-disabled='true'] {
     cursor: default;
     background: transparent;

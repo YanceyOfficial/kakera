@@ -7,6 +7,13 @@ A native Apple flashcard app for memorizing difficult vocabulary — in English 
 Japanese, one deck each, with furigana over every Japanese sentence — built around **on-device AI card generation** and a **scientific spaced-repetition
 memory model (FSRS-6)**. SwiftUI + SwiftData + Swift Charts, iPhone first.
 
+<a href="https://apps.apple.com/app/kakera/id6824415320">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="website/public/badges/app-store-white.svg" />
+    <img src="website/public/badges/app-store-black.svg" height="44" alt="Download on the App Store" />
+  </picture>
+</a>
+
 The core idea: turn *hard memorization* into *efficient understanding*. AI enriches every
 word (bilingual meaning, examples, mnemonics, etymology, roots, synonym groups,
 collocations, a daily story), and an FSRS-based scheduler decides **what to review and
