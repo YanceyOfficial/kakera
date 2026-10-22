@@ -2,10 +2,10 @@
 export const SITE_URL = 'https://kakera.yancey.app'
 
 /**
- * The App Store listing. Until Kakera is published there is none: the buttons say "Coming to the App Store" and
- * link nowhere. Set the listing's URL here and every button becomes a download link.
+ * The App Store listing, without a storefront so Apple sends each visitor to their own country's page. Set to
+ * `null` and the buttons say "Coming to the App Store" and link nowhere.
  */
-export const APP_STORE_URL: string | null = null
+export const APP_STORE_URL: string | null = 'https://apps.apple.com/app/kakera/id6824415320'
 
 /** Where questions and bug reports go — the privacy policy's contact too. */
 export const ISSUES_URL = 'https://github.com/YanceyOfficial/kakera/issues'
