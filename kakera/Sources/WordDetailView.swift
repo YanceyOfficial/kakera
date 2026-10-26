@@ -25,9 +25,9 @@ struct WordDetailView: View {
     @State private var newTag = ""
     @FocusState private var tagFieldFocused: Bool
 
-    /// Tap-through: navigate to a related word, or offer to add one that's not in the deck.
+    /// Tap-through: navigate to a related word (one not in the deck is offered for adding by
+    /// its own chip, `RelatedWordChip`).
     @State private var linkedLemma: String?
-    @State private var addCandidate: String?
     @State private var adding = false
 
     private var repository: VocabularyRepository { VocabularyRepository(context: modelContext) }
@@ -80,16 +80,6 @@ struct WordDetailView: View {
             } else {
                 ContentUnavailableView("Not found", systemImage: "questionmark")
             }
-        }
-        .confirmationDialog(
-            addCandidate.map { "Add “\($0)” to your deck?" } ?? "",
-            isPresented: Binding(get: { addCandidate != nil }, set: { if !$0 { addCandidate = nil } }),
-            titleVisibility: .visible
-        ) {
-            if let word = addCandidate {
-                Button("Generate & add") { addWord(word) }
-            }
-            Button("Cancel", role: .cancel) {}
         }
     }
 
@@ -169,26 +159,16 @@ struct WordDetailView: View {
     }
 
     /// A tappable related word: opens it if it's in the deck, else offers to add it.
-    private func wordChip(_ word: String) -> some View {
-        Button { tapWord(word) } label: {
-            Text(word)
-                .font(KakeraFont.body(15, weight: .medium))
-                .foregroundStyle(KakeraColor.vermilion)
-                .padding(.horizontal, KakeraSpacing.s)
-                .padding(.vertical, 4)
-                .background(Capsule().fill(KakeraColor.vermilion.opacity(0.12)))
-        }
-        .buttonStyle(.plain)
+    private func wordChip(_ raw: String) -> some View {
+        let word = raw.trimmingCharacters(in: .whitespaces)
+        return RelatedWordChip(word: word, open: { openIfKnown(word) }, add: { addWord(word) })
     }
 
-    private func tapWord(_ raw: String) {
-        let word = raw.trimmingCharacters(in: .whitespaces)
-        guard !word.isEmpty else { return }
-        if lookup(word) != nil {
-            linkedLemma = word
-        } else {
-            addCandidate = word
-        }
+    /// Navigates to the word when it's in the deck; false when it isn't.
+    private func openIfKnown(_ word: String) -> Bool {
+        guard !word.isEmpty, lookup(word) != nil else { return false }
+        linkedLemma = word
+        return true
     }
 
     private func lookup(_ lemma: String) -> VocabularyEntry? {
@@ -467,6 +447,38 @@ struct WordDetailView: View {
             Text(value)
                 .font(KakeraFont.body(15))
                 .foregroundStyle(KakeraColor.inkSecondary)
+        }
+    }
+}
+
+
+/// A related word as a capsule: tapping opens it when it's in the deck, and otherwise asks
+/// whether to generate and add it. The question is a confirmation dialog on the chip
+/// itself: iOS 26 anchors a dialog to the view that presents it, so one attached to the
+/// whole list (as it was) came up at the top of the screen, nowhere near the tapped word.
+private struct RelatedWordChip: View {
+    let word: String
+    /// Opens the word if it's in the deck; false when it isn't, and the offer follows.
+    let open: () -> Bool
+    let add: () -> Void
+
+    @State private var offeringToAdd = false
+
+    var body: some View {
+        Button {
+            if !open() { offeringToAdd = true }
+        } label: {
+            Text(word)
+                .font(KakeraFont.body(15, weight: .medium))
+                .foregroundStyle(KakeraColor.accent)
+                .padding(.horizontal, KakeraSpacing.s)
+                .padding(.vertical, 4)
+                .background(Capsule().fill(KakeraColor.accent.opacity(0.12)))
+        }
+        .buttonStyle(.plain)
+        .confirmationDialog("Add “\(word)” to your deck?", isPresented: $offeringToAdd, titleVisibility: .visible) {
+            Button("Generate & add") { add() }
+            Button("Cancel", role: .cancel) {}
         }
     }
 }
