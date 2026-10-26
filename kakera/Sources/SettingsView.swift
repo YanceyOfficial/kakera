@@ -147,7 +147,7 @@ struct SettingsView: View {
                         }
                     }
                     if !apiKey.isEmpty {
-                        Button { Task { await checkKey() } } label: {
+                        Button { Task { await checkKey(announcing: true) } } label: {
                             HStack {
                                 Text(models.isEmpty ? "Check key & load models" : "Reload models")
                                 Spacer()
@@ -247,7 +247,11 @@ struct SettingsView: View {
 
     /// Fetches the provider's model list with the key — which is also the check that the
     /// key works — and keeps the chosen model if it is still offered, else the newest.
-    private func checkKey() async {
+    ///
+    /// The screen checks the key on its own as it opens, so by the time "Reload models" is
+    /// tapped the footer already reads "Connected" and a reload changes nothing visible;
+    /// `announcing` (the button) answers with a toast and a haptic as well.
+    private func checkKey(announcing: Bool = false) async {
         let kind = aiKind
         modelCheck = .checking
         do {
@@ -259,9 +263,14 @@ struct SettingsView: View {
                 model = first.id
             }
             modelCheck = fetched.isEmpty ? .failed("The key works, but no models were listed.") : .connected
+            if announcing, !fetched.isEmpty {
+                KakeraHaptics.success()
+                toast.show("Reloaded · \(fetched.count) model\(fetched.count == 1 ? "" : "s")")
+            }
         } catch {
             guard kind == aiKind else { return }
             modelCheck = .failed(error.localizedDescription)
+            if announcing { toast.error(error.localizedDescription, category: "ai") }
         }
     }
 
