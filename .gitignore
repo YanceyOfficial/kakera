@@ -91,3 +91,6 @@ website/dist/
 .env.*
 !.env.example
 .playwright-mcp/
+
+# App Store screenshot sets (scripts/screenshots.sh --appstore): large, regenerated
+screenshots/appstore/
