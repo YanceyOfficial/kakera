@@ -55,6 +55,14 @@ public struct GeneratedCard: Codable, Equatable, Sendable {
     public let collocations: [GeneratedCollocation]
     public let confusables: [String]
     public let quizzes: [GeneratedQuiz]
+
+    /// No meaning and no example: nothing a learner could study. A model shouldn't write
+    /// one, but when it does the card is a failure to report, not an entry to save.
+    public var isBlank: Bool {
+        explanation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && explanationEn.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && examples.isEmpty
+    }
 }
 
 /// An item the model could not identify as a word or expression of the language — a typo,

@@ -175,6 +175,8 @@ struct WordDetailView: View {
         (try? repository.entry(lemma: lemma, language: entry.language)) ?? nil
     }
 
+    /// Adds a related word through the add-words sheet's own path (`AddWordsStore`): one
+    /// request, the blank-card guard, the log — then opens the word as it is in the deck.
     private func addWord(_ word: String) {
         guard AIConfigStore.hasKey else {
             toast.error("Add an API key in Settings first", category: "words")
@@ -183,25 +185,21 @@ struct WordDetailView: View {
         Task { @MainActor in
             adding = true
             defer { adding = false }
-            let config: AIConfiguration
-            do { config = try await AIConfigStore.readyConfiguration() }
-            catch {
-                toast.error(error.localizedDescription, category: "ai")
-                return
+            let item = await AddWordsStore(repository: repository, language: entry.language).add(word)
+            switch item.status {
+            case .added:
+                toast.show("Added “\(item.lemma ?? word)”")
+                linkedLemma = item.lemma ?? word
+            case .alreadyInDeck:
+                toast.show("“\(item.lemma ?? word)” is already in your deck")
+                linkedLemma = item.lemma ?? word
+            case .unrecognized(let reason, _):
+                toast.error("“\(word)” wasn't recognized — \(reason)", category: "words")
+            case .failed(let message):
+                toast.error(message, category: "words")
+            case .queued, .generating:
+                break
             }
-            let outcome = await ProviderFactory.make(config)
-                .generateCards(lemmas: [word], language: entry.language, literaryExamples: false, chunkSize: 1)
-            guard let card = outcome.cards.first else {
-                if let verdict = outcome.unrecognized.first {
-                    toast.error("“\(word)” wasn't recognized — \(verdict.reason)", category: "words")
-                } else {
-                    toast.error(outcome.failures.first?.message ?? "Couldn't add “\(word)”", category: "words")
-                }
-                return
-            }
-            _ = try? repository.insertIfAbsent(AICardMapper.entry(from: card, language: entry.language))
-            toast.show("Added “\(card.lemma)”")
-            linkedLemma = card.lemma
         }
     }
 

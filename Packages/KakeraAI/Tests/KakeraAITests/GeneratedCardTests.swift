@@ -60,3 +60,20 @@ func unrecognizedDecodes() throws {
     let bare = try JSONDecoder().decode(GeneratedCardBatch.self, from: Data(#"{"cards":[]}"#.utf8))
     #expect(bare.unrecognized.isEmpty)
 }
+
+@Test("A card with no meaning and no examples is blank — nothing a learner could study")
+func blankCard() throws {
+    func card(explanation: String, explanationEn: String = "", examples: String = "[]") throws -> GeneratedCard {
+        let json = """
+        {"cards":[{"lemma":"装飾","kind":"word","phonetic":"","syllables":[],"explanation":"\(explanation)",
+        "explanationEn":"\(explanationEn)","partsOfSpeech":[],"examples":\(examples),"mnemonic":"","etymology":"",
+        "roots":"","synonyms":[],"collocations":[],"confusables":[],"quizzes":[]}]}
+        """
+        return try JSONDecoder().decode(GeneratedCardBatch.self, from: Data(json.utf8)).cards[0]
+    }
+    #expect(try card(explanation: "").isBlank)
+    #expect(try card(explanation: "  ").isBlank)
+    #expect(!(try card(explanation: "[名] 装饰").isBlank))
+    #expect(!(try card(explanation: "", explanationEn: "decoration").isBlank))
+    #expect(!(try card(explanation: "", examples: #"[{"sentence":"部屋を装飾する。","translation":"装饰房间。"}]"#).isBlank))
+}

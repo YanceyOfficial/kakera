@@ -48,8 +48,14 @@ enum AIConfigStore {
         UserDefaults.standard.set(try? JSONEncoder().encode(models), forKey: modelsKey(kind))
     }
 
-    /// Whether the current provider has a key (without checking it).
-    static var hasKey: Bool { !apiKey(for: currentKind()).isEmpty }
+    /// Whether the current provider has a key (without checking it). The simulator's stand-in
+    /// model (`DemoAI`) needs none.
+    static var hasKey: Bool {
+        #if DEBUG
+        if DemoAI.isRequested { return true }
+        #endif
+        return !apiKey(for: currentKind()).isEmpty
+    }
 
     /// The configuration to generate with: the chosen model and its own output ceiling,
     /// both from the provider's model list. If the list was never fetched or no longer

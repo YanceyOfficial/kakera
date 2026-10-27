@@ -26,6 +26,9 @@ final class AddWordsStore {
         let id: UUID
         var word: String
         var status: Status
+        /// The headword as it is in the deck — the model's dictionary form, or the entry that
+        /// was there already — once the word is in. What a tap-through opens.
+        var lemma: String?
     }
 
     private(set) var items: [Item] = []
@@ -45,7 +48,10 @@ final class AddWordsStore {
         repository: VocabularyRepository,
         language: LanguageDomain,
         makeProvider: @escaping @Sendable () async throws -> any LLMProvider = {
-            ProviderFactory.make(try await AIConfigStore.readyConfiguration())
+            #if DEBUG
+            if DemoAI.isRequested { return DemoProvider() }
+            #endif
+            return ProviderFactory.make(try await AIConfigStore.readyConfiguration())
         }
     ) {
         self.repository = repository
@@ -111,6 +117,17 @@ final class AddWordsStore {
         await run?.value
     }
 
+    /// Generates one word and waits for its verdict — for a tap that adds a single word (a
+    /// related word on the detail page) and wants an answer rather than a list. The item
+    /// carries the headword as it is in the deck, to open.
+    func add(_ word: String) async -> Item {
+        start(words: [word])
+        await settle()
+        let key = GeneratedBatchMatcher.key(word)
+        return items.first { GeneratedBatchMatcher.key($0.word) == key }
+            ?? Item(id: UUID(), word: word, status: .failed(message: "Nothing was generated."))
+    }
+
     private func generate() {
         guard run == nil else { return }   // the running loop picks up what was just queued
         run = Task { [weak self] in await self?.runQueue() }
@@ -128,8 +145,8 @@ final class AddWordsStore {
             var toGenerate: [Item] = []
             for item in pending {
                 // A word already in the deck needs no request.
-                if (try? repository.entry(lemma: item.word, language: language)) ?? nil != nil {
-                    set(item.id, .alreadyInDeck)
+                if let existing = (try? repository.entry(lemma: item.word, language: language)) ?? nil {
+                    set(item.id, .alreadyInDeck, lemma: existing.lemma)
                 } else {
                     set(item.id, .generating)
                     toGenerate.append(item)
@@ -173,9 +190,23 @@ final class AddWordsStore {
                 guard let i = items.firstIndex(where: { $0.word == lemma && $0.status == .generating }) else { continue }
                 switch matches[lemma] {
                 case .card(let card)?:
+                    // A card with nothing on it would be an empty entry in the deck: a failure
+                    // to show and log, like no card at all.
+                    guard !card.isBlank else {
+                        AppLog.shared.error("The model wrote an empty card for “\(lemma)”", category: "ai")
+                        items[i].status = .failed(message: "The model wrote an empty card for this word.")
+                        continue
+                    }
                     do {
-                        let inserted = try repository.insertIfAbsent(AICardMapper.entry(from: card, language: language))
-                        items[i].status = inserted ? .added(gloss: card.explanation) : .alreadyInDeck
+                        let entry = AICardMapper.entry(from: card, language: language)
+                        if try repository.insertIfAbsent(entry) {
+                            AppLog.shared.info("Added “\(entry.lemma)”: \(card.explanation) · \(card.examples.count) examples", category: "words")
+                            items[i].status = .added(gloss: card.explanation)
+                            items[i].lemma = entry.lemma
+                        } else {
+                            items[i].status = .alreadyInDeck
+                            items[i].lemma = ((try? repository.entry(lemma: entry.lemma, language: language)) ?? nil)?.lemma ?? entry.lemma
+                        }
                     } catch {
                         AppLog.shared.error("Couldn't save “\(lemma)”: \(error.localizedDescription)", category: "words")
                         items[i].status = .failed(message: "Couldn't save the card — \(error.localizedDescription)")
@@ -198,8 +229,9 @@ final class AddWordsStore {
         }
     }
 
-    private func set(_ id: UUID, _ status: Status) {
+    private func set(_ id: UUID, _ status: Status, lemma: String? = nil) {
         guard let i = items.firstIndex(where: { $0.id == id }) else { return }
         items[i].status = status
+        if let lemma { items[i].lemma = lemma }
     }
 }

@@ -152,4 +152,32 @@ struct AddWordsStoreTests {
         #expect(store.items.first?.status == .alreadyInDeck)
         #expect(try repository.entries(for: .english).count == before + 1)
     }
+
+    @Test("A card with nothing on it is not saved: the word fails with the reason, for a retry")
+    func blankCardIsNotSaved() async throws {
+        let store = makeStore(ScriptedProvider(["装飾": .card(gloss: "")]))
+        store.start(words: ["装飾"])
+        await store.settle()
+        #expect(store.items.first?.status == .failed(message: "The model wrote an empty card for this word."))
+        #expect(try repository.entries(for: .english).isEmpty)
+    }
+
+    @Test("Adding one word answers with its verdict and the headword as it is in the deck")
+    func addOneWord() async throws {
+        let store = makeStore(ScriptedProvider(["halcyon": .card(gloss: "adj. 宁静的")]))
+        let item = await store.add("halcyon")
+        #expect(item.status == .added(gloss: "adj. 宁静的"))
+        #expect(item.lemma == "halcyon")
+        #expect(try repository.entries(for: .english).map(\.lemma) == ["halcyon"])
+    }
+
+    @Test("Adding a word already in the deck names the entry that is there, spelled as it is there")
+    func addExistingWord() async throws {
+        let store = makeStore(ScriptedProvider([:]))
+        _ = try repository.insertIfAbsent(AICardMapper.entry(from: ScriptedProvider.card("Halcyon", gloss: "adj. 宁静的")))
+        let item = await store.add("halcyon")
+        #expect(item.status == .alreadyInDeck)
+        #expect(item.lemma == "Halcyon")
+        #expect(try repository.entries(for: .english).count == 1)
+    }
 }
