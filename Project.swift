@@ -30,6 +30,11 @@ let project = Project(
                         "UIImageName": "LaunchMark",
                     ],
                     "CFBundleDisplayName": "Kakera",
+                    // kakera://review etc. — the widget's tap lands on the Review tab (TabDeepLink).
+                    "CFBundleURLTypes": [[
+                        "CFBundleURLName": "app.yancey.kakera",
+                        "CFBundleURLSchemes": ["kakera"],
+                    ]],
                     // Only HTTPS (exempt): App Store Connect needn't ask about export compliance.
                     "ITSAppUsesNonExemptEncryption": false,
                     // CloudKit pushes silently when another device changed the store.

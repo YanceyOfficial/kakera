@@ -40,6 +40,10 @@ struct MainTabView: View {
                 .tabItem { Label("Settings", systemImage: "gearshape") }
         }
         .id(studyLanguageRaw)
+        // kakera://review — the widget's tap (TabDeepLink).
+        .onOpenURL { url in
+            if let tab = TabDeepLink.tab(for: url) { selection = tab }
+        }
         .environment(\.showsFurigana, showFurigana)
         .tint(KakeraColor.accent)
         .minimizingTabBarOnScroll()
