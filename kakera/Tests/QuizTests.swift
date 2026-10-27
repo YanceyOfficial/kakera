@@ -90,7 +90,7 @@ struct QuizGeneratorTests {
 @Suite(.serialized)
 struct QuizStoreTests {
     private func makeSeededStore() throws -> (QuizStore, VocabularyRepository) {
-        let context = ModelContext(try KakeraModelContainer.inMemory())
+        let context = ModelContext(try KakeraModelContainer.scratch())
         let repository = VocabularyRepository(context: context)
         try StarterSeed.seedIfEmpty(repository)
         return (QuizStore(context: context, language: .english), repository)

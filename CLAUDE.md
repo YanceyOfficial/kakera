@@ -16,7 +16,7 @@ in English and Japanese (one deck per language, switched in the app). SwiftUI + 
   - `KakeraAI` — `LLMProvider` protocol + Claude/OpenAI structured-output over `URLSession` (`HTTPTransport` is injectable). Produces Codable DTOs, not SwiftData. Depends on KakeraCore (enums only).
   - `KakeraServices` — logging (`os.Logger`), Keychain (`SecretStore`), FSRS-driven forgetting-push scheduling + quiet hours, Vision OCR, word pronunciation (`PronunciationVoice`: Youdao dictvoice via `AVPlayer` — English by `type`, Japanese by `le=jap`, said by its kana reading (`JapaneseSpeech`); whatever Youdao has no audio for, e.g. a Japanese sentence or no network, falls back to `AVSpeechSynthesizer`). Depends on KakeraFSRS. Pattern: **protocol + pure (tested) logic + thin platform adapter (compiled, not unit-tested)**.
   - `KakeraUI` — the design system (`KakeraColor`/`KakeraFont`/`KakeraSpacing`, `KakeraMotion` springs + gesture math, `FlipCard`, `KakeraMark`, toasts) and ruby: `Ruby` parses the inline furigana markup `{漢字|かんじ}` the AI writes into Japanese sentences (`plain` / `reading`), and `RubyText` shows reading text: a read-only **TextKit 2** `UITextView` (TextKit 1 ignores Core Text ruby), so the system lays out the furigana (overhang, kinsoku) and a long press selects any span for the system edit menu — Copy, Look Up, Translate, Writing Tools. The card back and word detail use it for all their reading text; `showsFurigana` off drops the readings. Tested with `swift test --package-path Packages/KakeraUI`.
-- `kakera/UITests` — `KakeraUITests` (XCTest; Swift Testing can't drive an app): `ScreenshotTests` walks the screens in light and dark over the DEBUG-only demo deck (`DemoDeck`, `-demoDeck YES`). Run `scripts/screenshots.sh [simulator id]` → `screenshots/<name>.png` / `<name>-dark.png`, used by the README and the website. Never take them by hand. A throwaway XCUITest in this folder is also the way to *see* something on the simulator (a dialog, the widget via Springboard's gallery): `xcodebuild test … -only-testing:KakeraUITests/<Probe>` with `TEST_RUNNER_SHOTS_DIR`, then delete it. In Xcode 27 the simulator window is Device Hub, not Simulator.app.
+- `kakera/UITests` — `KakeraUITests` (XCTest; Swift Testing can't drive an app): `ScreenshotTests` walks the screens in light and dark over the DEBUG-only demo deck (`DemoDeck`, `-demoDeck YES`); `-demoAI YES` adds a stand-in model (`DemoProvider`: a card after a beat, a "did you mean" for a few planted typos, 529 for `fail`, a never-ending wait for `ineffable`), so the add-words flow runs on the simulator without a key. Run `scripts/screenshots.sh [simulator id]` → `screenshots/<name>.png` / `<name>-dark.png`, used by the README and the website. Never take them by hand. A throwaway XCUITest in this folder is also the way to *see* something on the simulator (a dialog, the widget via Springboard's gallery): `xcodebuild test … -only-testing:KakeraUITests/<Probe>` with `TEST_RUNNER_SHOTS_DIR`, then delete it. In Xcode 27 the simulator window is Device Hub, not Simulator.app.
 - `website/` — the site at https://kakera.yancey.app (TanStack Start + Solid, from Hikki's site; standalone, `bun install` inside). `/privacy` is the App Store privacy policy — keep it true to what the app sends where. The home page plays Apple-style scroll scenes (pinned hero and tour driven by `--p` from `src/scroll.ts`, plus CSS scroll-driven `reveal`/`drift`/`slide-x`); only transform/opacity move, and `prefers-reduced-motion` gets a still layout. Screenshots: `(cd website && bun run shots ../screenshots)`.
 - `docs/superpowers/` — design spec (`specs/`) and per-package TDD implementation plans (`plans/`).
 - App icon: `kakera/Resources/AppIcon.icon`, an Icon Composer document (SVG layers + `icon.json`;
@@ -60,12 +60,13 @@ xcodebuild build -workspace kakera.xcworkspace -scheme Kakera -destination 'plat
   All SwiftData tests live in ONE `@Suite(.serialized)` sharing a single in-memory
   `ModelContainer` (concurrent container creation crashes SwiftData). See
   `Packages/KakeraCore/Tests/KakeraCoreTests/SwiftDataTests.swift`.
-- **An app test that awaits while holding a SwiftData container uses `KakeraModelContainer.scratch()`**
-  (its own temp-file store), not `inMemory()`: every in-memory container shares one SQLite store
-  (`/dev/null`), and another suite dropping its container during the await takes the connection
-  from under a fetch — the host dies with "No eligible connection available" and xcodebuild
-  restarts it for every remaining SwiftData test. Synchronous suites never overlap and stay on
-  `inMemory()`. See `kakera/Tests/AddWordsStoreTests.swift`.
+- **Every app test container is `KakeraModelContainer.scratch()`** (its own temp-file store), never
+  `inMemory()`: all in-memory containers share one SQLite store (`/dev/null`), and one container
+  being torn down — the previous test's, on a background thread — while the next one opens takes
+  the connection from under a save or fetch: the host dies with "No eligible connection
+  available" and xcodebuild restarts it for every remaining SwiftData test. It is timing-bound,
+  so a suite that passed twice still fails later. `inMemory()` is for a process that creates one
+  container, as KakeraCore's single serialized suite does. See `kakera/Tests/AddWordsStoreTests.swift`.
 
 ## Conventions
 
@@ -79,8 +80,8 @@ xcodebuild build -workspace kakera.xcworkspace -scheme Kakera -destination 'plat
 
 ## Status (2026-07)
 
-Kernel green: KakeraCore (20 tests), KakeraFSRS (23), KakeraAI (49), KakeraServices (32). App green:
-57 tests in `KakeraTests` (run on the simulator).
+Kernel green: KakeraCore (20 tests), KakeraFSRS (23), KakeraAI (50), KakeraServices (32). App green:
+60 tests in `KakeraTests` (run on the simulator).
 
 The app is a `MainTabView` shell — Review / Quiz / Words / Stats / Settings — over one
 SwiftData store (a starter deck per language seeded at launch by `StarterSeed`).
@@ -111,6 +112,9 @@ views drop as they are redesigned). The "Again" rating is red (`KakeraColor.dang
   `CardSchema`), and the sheet offers the suggestions to pick from; a failed word shows its
   reason with a retry, and every failure is logged **with its words**. The model's reply is
   paired with the words by `GeneratedBatchMatcher` (case, width, ruby and a leading 〜 folded).
+  A card with no meaning and no example (`GeneratedCard.isBlank`) is a failure, never an empty
+  entry. The detail page's related-word chips add through the same store (`AddWordsStore.add`),
+  so one path does the duplicate check, the blank guard and the log.
   `RetryingTransport` retries 408/409/429/5xx up to six times, honouring `retry-after`.
 - **Stats** — Swift Charts dashboard (`StatsAggregator` pure): counts, 7-day bars, accuracy.
 - **Settings** — new-words-per-session, pronunciation accent/auto-play, and AI provider +

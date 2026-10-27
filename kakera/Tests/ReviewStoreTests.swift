@@ -11,7 +11,7 @@ import KakeraCore
 struct ReviewStoreTests {
     /// Fresh store + a seeded starter deck, plus the repository for assertions.
     private func makeSeededStore() throws -> (ReviewStore, VocabularyRepository) {
-        let container = try KakeraModelContainer.inMemory()
+        let container = try KakeraModelContainer.scratch()
         let context = ModelContext(container)
         let repository = VocabularyRepository(context: context)
         try StarterSeed.seedIfEmpty(repository)
@@ -20,7 +20,7 @@ struct ReviewStoreTests {
 
     @Test("StarterSeed fills an empty deck and is idempotent")
     func seedIsIdempotent() throws {
-        let container = try KakeraModelContainer.inMemory()
+        let container = try KakeraModelContainer.scratch()
         let repository = VocabularyRepository(context: ModelContext(container))
         try StarterSeed.seedIfEmpty(repository)
         try StarterSeed.seedIfEmpty(repository)
@@ -29,7 +29,7 @@ struct ReviewStoreTests {
 
     @Test("Each language has its own starter deck, and a session sees only its own")
     func decksAreIsolatedByLanguage() throws {
-        let container = try KakeraModelContainer.inMemory()
+        let container = try KakeraModelContainer.scratch()
         let context = ModelContext(container)
         let repository = VocabularyRepository(context: context)
         for language in LanguageDomain.allCases {
