@@ -62,16 +62,24 @@ struct AddWordsStoreTests {
         }
     }
 
-    private func makeStore(_ provider: ScriptedProvider) throws -> (AddWordsStore, VocabularyRepository) {
-        let container = try KakeraModelContainer.inMemory()
-        let repository = VocabularyRepository(context: ModelContext(container))
-        let store = AddWordsStore(repository: repository, language: .english) { provider }
-        return (store, repository)
+    /// Its own store, held for the test's whole life: these tests suspend while the store
+    /// works, and in-memory containers all share one SQLite store — another suite dropping
+    /// its container mid-await took the connection from under a fetch here (`scratch()`).
+    private let container: ModelContainer
+    private let repository: VocabularyRepository
+
+    init() throws {
+        container = try KakeraModelContainer.scratch()
+        repository = VocabularyRepository(context: ModelContext(container))
+    }
+
+    private func makeStore(_ provider: ScriptedProvider) -> AddWordsStore {
+        AddWordsStore(repository: repository, language: .english) { provider }
     }
 
     @Test("Each word lands in the deck as its card arrives, with its gloss")
     func wordsLandWithGlosses() async throws {
-        let (store, repository) = try makeStore(ScriptedProvider(["alpha": .card(gloss: "n. 开端"), "beta": .card(gloss: "n. 其次")]))
+        let store = makeStore(ScriptedProvider(["alpha": .card(gloss: "n. 开端"), "beta": .card(gloss: "n. 其次")]))
         store.start(words: ["alpha", "beta"])
         await store.settle()
         #expect(store.items.map(\.word) == ["alpha", "beta"])
@@ -84,7 +92,7 @@ struct AddWordsStoreTests {
 
     @Test("A word the model doesn't recognize waits for the learner, with the suggestions, and is not added")
     func unrecognizedWaits() async throws {
-        let (store, repository) = try makeStore(ScriptedProvider(["serendipty": .unrecognized(reason: "拼写有误", suggestions: ["serendipity"])]))
+        let store = makeStore(ScriptedProvider(["serendipty": .unrecognized(reason: "拼写有误", suggestions: ["serendipity"])]))
         store.start(words: ["serendipty"])
         await store.settle()
         #expect(store.items.first?.status == .unrecognized(reason: "拼写有误", suggestions: ["serendipity"]))
@@ -95,7 +103,7 @@ struct AddWordsStoreTests {
     @Test("A failed word names what went wrong and can be retried")
     func failedWordRetries() async throws {
         let provider = ScriptedProvider(["flaky": .failOnce(thenGloss: "adj. 不稳定的")])
-        let (store, repository) = try makeStore(provider)
+        let store = makeStore(provider)
         store.start(words: ["flaky"])
         await store.settle()
         #expect(store.items.first?.status == .failed(message: AIError.http(status: 529, body: "overloaded").localizedDescription))
@@ -109,7 +117,7 @@ struct AddWordsStoreTests {
 
     @Test("Picking a suggestion generates that word in place of the typo")
     func suggestionReplacesTypo() async throws {
-        let (store, repository) = try makeStore(ScriptedProvider([
+        let store = makeStore(ScriptedProvider([
             "serendipty": .unrecognized(reason: "拼写有误", suggestions: ["serendipity"]),
             "serendipity": .card(gloss: "n. 机缘巧合"),
         ]))
@@ -124,8 +132,7 @@ struct AddWordsStoreTests {
 
     @Test("Without a usable AI setup every word fails with the reason")
     func setupFailureNamesReason() async throws {
-        let container = try KakeraModelContainer.inMemory()
-        let store = AddWordsStore(repository: VocabularyRepository(context: ModelContext(container)), language: .english) {
+        let store = AddWordsStore(repository: repository, language: .english) {
             throw AIError.missingAPIKey
         }
         store.start(words: ["alpha"])
@@ -136,7 +143,7 @@ struct AddWordsStoreTests {
 
     @Test("A word already in the deck is reported as such, not added twice")
     func duplicateIsReported() async throws {
-        let (store, repository) = try makeStore(ScriptedProvider(["alpha": .card(gloss: "n. 开端")]))
+        let store = makeStore(ScriptedProvider(["alpha": .card(gloss: "n. 开端")]))
         try StarterSeed.seedIfEmpty(repository)
         let before = try repository.entries(for: .english).count
         _ = try repository.insertIfAbsent(AICardMapper.entry(from: ScriptedProvider.card("alpha", gloss: "old")))

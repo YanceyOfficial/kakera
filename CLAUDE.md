@@ -60,6 +60,12 @@ xcodebuild build -workspace kakera.xcworkspace -scheme Kakera -destination 'plat
   All SwiftData tests live in ONE `@Suite(.serialized)` sharing a single in-memory
   `ModelContainer` (concurrent container creation crashes SwiftData). See
   `Packages/KakeraCore/Tests/KakeraCoreTests/SwiftDataTests.swift`.
+- **An app test that awaits while holding a SwiftData container uses `KakeraModelContainer.scratch()`**
+  (its own temp-file store), not `inMemory()`: every in-memory container shares one SQLite store
+  (`/dev/null`), and another suite dropping its container during the await takes the connection
+  from under a fetch — the host dies with "No eligible connection available" and xcodebuild
+  restarts it for every remaining SwiftData test. Synchronous suites never overlap and stay on
+  `inMemory()`. See `kakera/Tests/AddWordsStoreTests.swift`.
 
 ## Conventions
 
