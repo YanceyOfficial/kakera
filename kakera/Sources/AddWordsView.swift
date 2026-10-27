@@ -32,6 +32,10 @@ struct AddWordsView: View {
     @State private var showingCamera = false
     @State private var pickedPhoto: PhotosPickerItem?
     @State private var isReading = false
+    /// The camera's photo, read once the camera has left the screen.
+    @State private var cameraPhoto: Data?
+    /// Why the last scan offered nothing, under the scan row until the next one.
+    @State private var scanNote: String?
     /// Words read from a picture, offered to pick from.
     @State private var scanned: ScannedWords?
 
@@ -95,6 +99,11 @@ struct AddWordsView: View {
                     .frame(minHeight: 160, alignment: .topLeading)
                     .focused($fieldFocused)
                 scanRow
+                if let scanNote {
+                    Label(scanNote, systemImage: "exclamationmark.triangle")
+                        .font(KakeraFont.body(14))
+                        .foregroundStyle(KakeraColor.danger)
+                }
             } header: {
                 Text("Words")
             } footer: {
@@ -118,10 +127,35 @@ struct AddWordsView: View {
                 if let data = try? await item.loadTransferable(type: Data.self) { await read(data) }
             }
         }
-        .fullScreenCover(isPresented: $showingCamera) {
-            CameraPicker { data in Task { await read(data) } }
-                .ignoresSafeArea()
+        // The photo is read only once the camera is off the screen: a sheet presented while the
+        // camera is still leaving is dropped by UIKit, and the words would never appear.
+        .fullScreenCover(isPresented: $showingCamera, onDismiss: {
+            guard let data = cameraPhoto else { return }
+            cameraPhoto = nil
+            Task { await read(data) }
+        }) {
+            #if DEBUG
+            if DemoCamera.isRequested {
+                DemoCameraView { data in cameraPhoto = data }
+            } else {
+                CameraPicker { data in cameraPhoto = data }.ignoresSafeArea()
+            }
+            #else
+            CameraPicker { data in cameraPhoto = data }.ignoresSafeArea()
+            #endif
         }
+        .overlay {
+            if isReading {
+                ZStack {
+                    Color.black.opacity(0.12).ignoresSafeArea()
+                    ProgressView("Reading the picture…")
+                        .padding(KakeraSpacing.l)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: isReading)
         .sheet(item: $scanned) { found in
             WordPickerSheet(
                 words: found.words, preselected: false,
@@ -144,18 +178,16 @@ struct AddWordsView: View {
                 Button { showingCamera = true } label: { Label("Take photo", systemImage: "camera") }
             }
         } label: {
-            HStack {
-                Label("Scan words from a photo", systemImage: "text.viewfinder")
-                Spacer()
-                if isReading { ProgressView().controlSize(.small) }
-            }
+            Label("Scan words from a photo", systemImage: "text.viewfinder")
         }
         .disabled(isReading)
     }
 
-    /// Recognizes the text in a picture and offers its words.
+    /// Recognizes the text in a picture and offers its words. What goes wrong is said under the
+    /// scan row, where it can be seen: a toast would show behind this sheet.
     private func read(_ data: Data) async {
         isReading = true
+        scanNote = nil
         defer { isReading = false }
         let language: CandidateLanguage = AppSettings.studyLanguage == .japanese ? .japanese : .english
         let recognizer = VisionTextRecognizer(languages: language == .japanese ? ["ja-JP", "en-US"] : ["en-US"])
@@ -163,12 +195,16 @@ struct AddWordsView: View {
         do {
             lines = try await recognizer.recognizeLines(in: data)
         } catch {
-            toast.error("Couldn't read that picture: \(error.localizedDescription)", category: "scan")
+            scanNote = "Couldn't read that picture: \(error.localizedDescription)"
+            AppLog.shared.error("Scan failed: \(error.localizedDescription)", category: "scan")
             return
         }
         let words = WordCandidateExtractor().candidates(from: lines, language: language)
         guard !words.isEmpty else {
-            toast.error("No \(language == .japanese ? "Japanese" : "English") words in that picture", category: "scan")
+            scanNote = lines.isEmpty
+                ? "No text found in that picture. Try a closer, sharper shot."
+                : "No \(language == .japanese ? "Japanese" : "English") words in that picture."
+            AppLog.shared.info("Scan read \(lines.count) lines and no words", category: "scan")
             return
         }
         scanned = ScannedWords(words: words)
