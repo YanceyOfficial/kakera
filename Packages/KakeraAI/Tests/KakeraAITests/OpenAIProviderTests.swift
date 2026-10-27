@@ -24,7 +24,7 @@ private let openAIBody: Data = {
 func openAIGenerateCards() async throws {
     let transport = CapturingTransport2(responseBody: openAIBody)
     let provider = OpenAIProvider(apiKey: "sk-oa", model: "gpt-5.5", transport: transport)
-    let cards = try await provider.generateCards(lemmas: ["obsession"], language: .english, literaryExamples: true)
+    let cards = try await provider.generateCards(lemmas: ["obsession"], language: .english, literaryExamples: true).cards
 
     #expect(cards.first?.lemma == "obsession")
     let req = try #require(transport.lastRequest)

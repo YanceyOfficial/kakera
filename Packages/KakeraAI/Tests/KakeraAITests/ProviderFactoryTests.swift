@@ -17,7 +17,7 @@ func factoryClaude() async throws {
     let env = try JSONSerialization.data(withJSONObject: ["content": [["type": "text", "text": inner]]])
     let config = AIConfiguration(kind: .claude, apiKey: "k", model: "claude-test", maxOutputTokens: 4096)
     let provider = ProviderFactory.make(config, transport: OKTransport(env))
-    let cards = try await provider.generateCards(lemmas: ["x"], language: .english, literaryExamples: false)
+    let cards = try await provider.generateCards(lemmas: ["x"], language: .english, literaryExamples: false).cards
     #expect(cards.first?.lemma == "x")
 }
 
@@ -27,7 +27,7 @@ func factoryOpenAI() async throws {
     let env = try JSONSerialization.data(withJSONObject: ["choices": [["message": ["content": inner]]]])
     let config = AIConfiguration(kind: .openai, apiKey: "k", model: "gpt-5.5")
     let provider = ProviderFactory.make(config, transport: OKTransport(env))
-    let cards = try await provider.generateCards(lemmas: [], language: .english, literaryExamples: false)
+    let cards = try await provider.generateCards(lemmas: [], language: .english, literaryExamples: false).cards
     #expect(cards.isEmpty)
 }
 

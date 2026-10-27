@@ -19,16 +19,16 @@ public struct ClaudeProvider: LLMProvider {
         self.maxTokens = maxTokens
     }
 
-    public func generateCards(lemmas: [String], language: LanguageDomain, literaryExamples: Bool) async throws -> [GeneratedCard] {
+    public func generateCards(lemmas: [String], language: LanguageDomain, literaryExamples: Bool) async throws -> GeneratedCardBatch {
         guard !apiKey.isEmpty else { throw AIError.missingAPIKey }
         let cleaned = lemmas.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
-        guard !cleaned.isEmpty else { return [] }
+        guard !cleaned.isEmpty else { return GeneratedCardBatch(cards: []) }
         let prompt = PromptBuilder(language: language, literaryExamples: literaryExamples)
 
         let json = try await send(system: prompt.systemPrompt(),
                                   user: prompt.cardUserPrompt(lemmas: cleaned),
                                   schema: CardSchema.cardBatch)
-        do { return try JSONDecoder().decode(GeneratedCardBatch.self, from: json).cards }
+        do { return try JSONDecoder().decode(GeneratedCardBatch.self, from: json) }
         catch { throw AIError.decoding("Cards: \(error)") }
     }
 

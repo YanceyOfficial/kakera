@@ -46,8 +46,14 @@ public enum CardSchema {
         ])
     }
 
-    /// Top-level schema: an object with a `cards` array.
+    /// An item the model could not identify (see `UnrecognizedWord`).
+    private static var unrecognized: JSONSchema {
+        .object(["input": .string, "reason": .string, "suggestions": .array(.string)],
+                required: ["input", "reason", "suggestions"])
+    }
+
+    /// Top-level schema: an object with a `cards` array and the `unrecognized` items.
     public static var cardBatch: JSONSchema {
-        .object(["cards": .array(card)], required: ["cards"])
+        .object(["cards": .array(card), "unrecognized": .array(unrecognized)], required: ["cards", "unrecognized"])
     }
 }

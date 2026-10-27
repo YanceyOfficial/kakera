@@ -26,7 +26,7 @@ private let anthropicBody: Data = {
 func claudeGenerateCards() async throws {
     let transport = CapturingTransport(responseBody: anthropicBody)
     let provider = ClaudeProvider(apiKey: "sk-test", model: "claude-opus-4-8", transport: transport, maxTokens: 4096)
-    let cards = try await provider.generateCards(lemmas: ["eccentric"], language: .english, literaryExamples: false)
+    let cards = try await provider.generateCards(lemmas: ["eccentric"], language: .english, literaryExamples: false).cards
 
     #expect(cards.count == 1)
     #expect(cards[0].lemma == "eccentric")
@@ -88,4 +88,16 @@ func claudeTruncated() async throws {
     await #expect(throws: AIError.truncated) {
         _ = try await provider.generateCards(lemmas: ["x"], language: .japanese, literaryExamples: false)
     }
+}
+
+@Test("ClaudeProvider hands back the items the model did not recognize beside the cards")
+func claudeUnrecognized() async throws {
+    let inner = #"{"cards":[],"unrecognized":[{"input":"serendipty","reason":"拼写有误","suggestions":["serendipity"]}]}"#
+    let envelope: [String: Any] = ["content": [["type": "text", "text": inner]], "stop_reason": "end_turn"]
+    let transport = CapturingTransport(responseBody: try JSONSerialization.data(withJSONObject: envelope))
+    let provider = ClaudeProvider(apiKey: "k", model: "claude-test", transport: transport, maxTokens: 4096)
+    let batch = try await provider.generateCards(lemmas: ["serendipty"], language: .english, literaryExamples: false)
+    #expect(batch.cards.isEmpty)
+    #expect(batch.unrecognized.map(\.input) == ["serendipty"])
+    #expect(batch.unrecognized.first?.suggestions == ["serendipity"])
 }

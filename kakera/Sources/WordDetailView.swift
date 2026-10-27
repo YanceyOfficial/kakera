@@ -192,7 +192,11 @@ struct WordDetailView: View {
             let outcome = await ProviderFactory.make(config)
                 .generateCards(lemmas: [word], language: entry.language, literaryExamples: false, chunkSize: 1)
             guard let card = outcome.cards.first else {
-                toast.error("Couldn't add “\(word)”", category: "words")
+                if let verdict = outcome.unrecognized.first {
+                    toast.error("“\(word)” wasn't recognized — \(verdict.reason)", category: "words")
+                } else {
+                    toast.error(outcome.failures.first?.message ?? "Couldn't add “\(word)”", category: "words")
+                }
                 return
             }
             _ = try? repository.insertIfAbsent(AICardMapper.entry(from: card, language: entry.language))

@@ -57,7 +57,38 @@ public struct GeneratedCard: Codable, Equatable, Sendable {
     public let quizzes: [GeneratedQuiz]
 }
 
-/// The top-level object returned by structured-output generation (a schema must be an object).
+/// An item the model could not identify as a word or expression of the language — a typo,
+/// another language, stray characters — so it wrote no card for it. `suggestions` are the
+/// words the learner most likely meant (plain text, dictionary form), for them to pick from.
+public struct UnrecognizedWord: Codable, Equatable, Sendable {
+    public let input: String
+    /// A short reason in the learner's language (Chinese).
+    public let reason: String
+    public let suggestions: [String]
+
+    public init(input: String, reason: String, suggestions: [String]) {
+        self.input = input
+        self.reason = reason
+        self.suggestions = suggestions
+    }
+}
+
+/// The top-level object returned by structured-output generation (a schema must be an object):
+/// one card per recognized item, and the items the model did not recognize.
 public struct GeneratedCardBatch: Codable, Equatable, Sendable {
     public let cards: [GeneratedCard]
+    /// Empty when every item got a card. Decodes as empty when a reply (or a test fixture)
+    /// predates the key.
+    public let unrecognized: [UnrecognizedWord]
+
+    public init(cards: [GeneratedCard], unrecognized: [UnrecognizedWord] = []) {
+        self.cards = cards
+        self.unrecognized = unrecognized
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        cards = try container.decode([GeneratedCard].self, forKey: .cards)
+        unrecognized = try container.decodeIfPresent([UnrecognizedWord].self, forKey: .unrecognized) ?? []
+    }
 }

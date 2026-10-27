@@ -50,6 +50,7 @@ public struct PromptBuilder: Sendable {
             "Produce `collocations`: fixed collocations / common phrases the word forms (e.g. for \"use\": \"used to\", \"make use of\"). Each has `phrase` (English), `meaning` (Chinese gloss), `example` (one English sentence) and `exampleTranslation` (its Chinese translation). Return an empty array if the word forms no notable collocations.",
             "Also produce at least 3 quiz items. Quiz `type` must be one of: singleChoice, splitCombine, fillInBlank, listeningSpelling, meaningMatch, contextCloze.",
             "IMPORTANT: if an item is a multi-word phrase, set its kind to \"phrase\" and DO NOT emit splitCombine or listeningSpelling quizzes for it (those apply to single words only). Single words use kind \"word\".",
+            Self.unrecognizedRule(language: "English"),
         ]
     }
 
@@ -69,7 +70,14 @@ public struct PromptBuilder: Sendable {
             "Produce `collocations`: set phrases the word commonly forms (e.g. for 気: 気が置けない, 気を配る). Each has `phrase` (Japanese, with ruby markup), `meaning` (Chinese gloss), `example` (one Japanese sentence, with ruby markup) and `exampleTranslation` (its Chinese translation). Return an empty array if the word forms no notable collocations.",
             "Also produce at least 3 quiz items. Quiz `type` must be one of: singleChoice, fillInBlank, listeningSpelling, meaningMatch, contextCloze. `question` may carry ruby markup; `choices` and `answers` are plain text (they are compared with what the learner picks or types). A listeningSpelling answer is the reading in hiragana.",
             "Never emit splitCombine for Japanese. IMPORTANT: if an item is a multi-word expression (e.g. 気が置けない, 猫の手も借りたい), set its kind to \"phrase\" and DO NOT emit listeningSpelling quizzes for it. Single words use kind \"word\".",
+            Self.unrecognizedRule(language: "Japanese"),
         ]
+    }
+
+    /// What to do with an item that isn't a word the model knows: say so rather than make a
+    /// card up, so the app can ask the learner what they meant (`UnrecognizedWord`).
+    static func unrecognizedRule(language: String) -> String {
+        "Write one card in `cards` for every item you recognize as a real \(language) word or expression, in the order given. If an item is NOT one — a typo, a word from another language, random characters, or something you cannot identify — DO NOT invent a card and DO NOT guess at a card for a similar word: leave it out of `cards` and list it in `unrecognized` with `input` exactly as given, a short `reason` in Chinese, and up to 3 `suggestions` (plain text, dictionary form) for what the learner most likely meant. `unrecognized` is an empty array when every item was recognized."
     }
 
     /// How Japanese text carries its readings. The app parses exactly this shape

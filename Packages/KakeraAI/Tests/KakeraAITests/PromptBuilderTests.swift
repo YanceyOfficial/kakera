@@ -54,3 +54,13 @@ func japaneseStoryPrompt() {
     #expect(s.contains("RUBY MARKUP"))
     #expect(s.lowercased().contains("chinese translation"))
 }
+
+@Test("Both languages tell the model to list a word it can't identify under unrecognized instead of inventing a card")
+func unrecognizedRule() {
+    for language in LanguageDomain.allCases {
+        let s = PromptBuilder(language: language, literaryExamples: false).systemPrompt()
+        #expect(s.contains("`unrecognized`"), "\(language)")
+        #expect(s.contains("`suggestions`"), "\(language)")
+        #expect(s.lowercased().contains("do not invent"), "\(language)")
+    }
+}

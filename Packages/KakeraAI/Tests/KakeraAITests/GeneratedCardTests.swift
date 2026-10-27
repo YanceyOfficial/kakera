@@ -45,3 +45,18 @@ func rootsOptional() throws {
     let batch = try JSONDecoder().decode(GeneratedCardBatch.self, from: json)
     #expect(batch.cards[0].roots == nil)
 }
+
+@Test("A batch carries the items the model did not recognize, and none when the key is absent")
+func unrecognizedDecodes() throws {
+    let json = """
+    {"cards":[],"unrecognized":[{"input":"serendipty","reason":"拼写有误","suggestions":["serendipity"]}]}
+    """.data(using: .utf8)!
+    let batch = try JSONDecoder().decode(GeneratedCardBatch.self, from: json)
+    #expect(batch.unrecognized.count == 1)
+    #expect(batch.unrecognized[0].input == "serendipty")
+    #expect(batch.unrecognized[0].reason == "拼写有误")
+    #expect(batch.unrecognized[0].suggestions == ["serendipity"])
+
+    let bare = try JSONDecoder().decode(GeneratedCardBatch.self, from: Data(#"{"cards":[]}"#.utf8))
+    #expect(bare.unrecognized.isEmpty)
+}
