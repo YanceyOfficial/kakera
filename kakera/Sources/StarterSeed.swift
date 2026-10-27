@@ -95,7 +95,8 @@ enum StarterSeed {
         [
             VocabularyEntry(
                 lemma: "eccentric", kind: .word, language: .english,
-                phonetic: "/ɪkˈsɛntrɪk/", explanation: "adj. 古怪的，异乎寻常的",
+                phonetic: "/ɪkˈsɛntrɪk/", syllables: ["ec", "cen", "tric"],
+                explanation: "adj. 古怪的，异乎寻常的",
                 explanationEn: "unconventional or slightly strange in behaviour",
                 examples: [Example(sentence: "My uncle is something of an eccentric.", translation: "我叔叔有点古怪。")],
                 etymology: "源自希腊语 ekkentros —— 偏离中心",
@@ -112,7 +113,8 @@ enum StarterSeed {
             ),
             VocabularyEntry(
                 lemma: "obsession", kind: .word, language: .english,
-                phonetic: "/əbˈsɛʃ.ən/", explanation: "n. 痴迷；萦绕于心的念头",
+                phonetic: "/əbˈsɛʃ.ən/", syllables: ["ob", "ses", "sion"],
+                explanation: "n. 痴迷；萦绕于心的念头",
                 explanationEn: "an idea or feeling that continually preoccupies the mind",
                 examples: [Example(sentence: "Finding his birth mother became an obsession.", translation: "找到生母成了他挥之不去的执念。")],
                 roots: "ob-（朝向）+ sess（坐）+ -ion（名词）→ 盘踞在心头",
@@ -128,7 +130,8 @@ enum StarterSeed {
             ),
             VocabularyEntry(
                 lemma: "meticulous", kind: .word, language: .english,
-                phonetic: "/məˈtɪk.jə.ləs/", explanation: "adj. 一丝不苟的，极为细致的",
+                phonetic: "/məˈtɪk.jə.ləs/", syllables: ["me", "tic", "u", "lous"],
+                explanation: "adj. 一丝不苟的，极为细致的",
                 explanationEn: "showing great attention to detail; very careful and precise",
                 examples: [Example(sentence: "She kept meticulous records of every review.", translation: "她把每次复习都记录得一丝不苟。")],
                 roots: "meticul-（拉丁语 metus，恐惧）+ -ous（形容词）→ 因怕出错而格外谨慎",

@@ -57,6 +57,16 @@ final class QuizStore {
     private func build(targets: [VocabularyEntry], pool: [VocabularyEntry]) {
         entriesByID = Dictionary(pool.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var rng = SystemRandomNumberGenerator()
+        #if DEBUG
+        // `-quizType splitCombine` asks every word as that type where it can be (UI screenshots).
+        if let forced = UserDefaults.standard.string(forKey: "quizType").flatMap(QuizType.init(rawValue:)) {
+            questions = targets.compactMap { target in
+                let candidates = generator.candidates(for: target, pool: pool, using: &rng)
+                return candidates.first { $0.type == forced } ?? candidates.randomElement(using: &rng)
+            }
+            return
+        }
+        #endif
         questions = generator.makeQuiz(due: targets, pool: pool, using: &rng)
     }
 

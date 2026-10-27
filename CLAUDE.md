@@ -86,7 +86,7 @@ xcodebuild build -workspace kakera.xcworkspace -scheme Kakera -destination 'plat
 ## Status (2026-07)
 
 Kernel green: KakeraCore (30 tests), KakeraFSRS (23), KakeraAI (50), KakeraServices (37), KakeraUI (20). App green:
-73 tests in `KakeraTests` (run on the simulator).
+75 tests in `KakeraTests` (run on the simulator).
 
 The app is a `MainTabView` shell — Review / Words / Stats / Settings — over one
 SwiftData store (a starter deck per language seeded at launch by `StarterSeed`).
@@ -110,7 +110,9 @@ views drop as they are redesigned). The "Again" rating is red (`KakeraColor.dang
   ones built from the card, Duolingo-style: single choice (meaning), word choice (meaning → word), spelling (meaning →
   typed word; Japanese accepts the kana reading), tiles (`splitCombine`: syllables/morae shuffled with two from other
   words), cloze (`QuizCloze.blank` blanks the lemma out of an example, keeping the rest of the furigana) and listening;
-  `makeQuestion` picks one at random. `QuizQuestion.mode` (choice / text / tiles) drives `QuizSessionView`.
+  `makeQuestion` picks one at random (DEBUG: `-quizType splitCombine` asks every word as that type where it can be,
+  for screenshots). `QuizQuestion.mode` (choice / text / tiles) drives `QuizSessionView`. The starter words and some
+  of the demo deck carry syllables, so the tiles question has pieces to shuffle.
 - **Words** — searchable list + authoring (`AddWordsView`: type or paste words, one per line
   via `PastedWordsParser`, and **AI** generation via KakeraAI); swipe to delete. Generation is
   **one request per word** (`AddWordsStore`, four in flight — the shortest request there is, and

@@ -16,7 +16,7 @@ enum DemoDeck {
         let starters = StarterSeed.entries(for: .english, now: now.addingTimeInterval(-40 * day))
         let extras = words.enumerated().map { offset, word in
             VocabularyEntry(lemma: word.lemma, kind: .word, language: .english, phonetic: word.phonetic,
-                            explanation: word.meaning, tags: word.tags,
+                            syllables: syllables[word.lemma] ?? [], explanation: word.meaning, tags: word.tags,
                             now: now.addingTimeInterval(-Double(38 - offset) * day))
         }
         // The starter words stay new and due, so the review screen opens on "eccentric".
@@ -65,6 +65,18 @@ enum DemoDeck {
             wordLemmas: ["eccentric", "obsession", "meticulous", "ephemeral", "diligence", "baffling"],
             now: now))
     }
+
+    /// Syllables for some of the words, so a tile question has pieces from other words to mix in.
+    private static let syllables: [String: [String]] = [
+        "ephemeral": ["e", "phem", "er", "al"],
+        "ubiquitous": ["u", "biq", "ui", "tous"],
+        "diligence": ["dil", "i", "gence"],
+        "candid": ["can", "did"],
+        "serendipity": ["ser", "en", "dip", "i", "ty"],
+        "resilient": ["re", "sil", "ient"],
+        "pragmatic": ["prag", "mat", "ic"],
+        "lucid": ["lu", "cid"],
+    ]
 
     private static let words: [(lemma: String, phonetic: String, meaning: String, tags: [String])] = [
         ("ephemeral", "/ɪˈfem.ər.əl/", "adj. 短暂的，转瞬即逝的", ["GRE"]),

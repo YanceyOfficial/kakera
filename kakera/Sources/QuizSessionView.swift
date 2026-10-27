@@ -169,7 +169,7 @@ struct QuizSessionView: View {
     private func instruction(for question: QuizQuestion) -> String {
         switch question.mode {
         case .choice: "Which word is it?"
-        case .text: language == .japanese ? "Type the word in kana" : "Type the word"
+        case .text: language == .japanese ? "Write the word in kana" : "Spell the word"
         case .tiles: "Tap the pieces in order"
         }
     }
