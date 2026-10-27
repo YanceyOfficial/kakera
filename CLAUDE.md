@@ -16,7 +16,7 @@ in English and Japanese (one deck per language, switched in the app). SwiftUI + 
   - `KakeraAI` — `LLMProvider` protocol + Claude/OpenAI structured-output over `URLSession` (`HTTPTransport` is injectable). Produces Codable DTOs, not SwiftData. Depends on KakeraCore (enums only).
   - `KakeraServices` — logging (`os.Logger`), Keychain (`SecretStore`), FSRS-driven forgetting-push scheduling + quiet hours, Vision OCR, word pronunciation (`PronunciationVoice`: Youdao dictvoice via `AVPlayer` — English by `type`, Japanese by `le=jap`, said by its kana reading (`JapaneseSpeech`); whatever Youdao has no audio for, e.g. a Japanese sentence or no network, falls back to `AVSpeechSynthesizer`). Depends on KakeraFSRS. Pattern: **protocol + pure (tested) logic + thin platform adapter (compiled, not unit-tested)**.
   - `KakeraUI` — the design system (`KakeraColor`/`KakeraFont`/`KakeraSpacing`, `KakeraMotion` springs + gesture math, `FlipCard`, `KakeraMark`, toasts) and ruby: `Ruby` parses the inline furigana markup `{漢字|かんじ}` the AI writes into Japanese sentences (`plain` / `reading`), and `RubyText` shows reading text: a read-only **TextKit 2** `UITextView` (TextKit 1 ignores Core Text ruby), so the system lays out the furigana (overhang, kinsoku) and a long press selects any span for the system edit menu — Copy, Look Up, Translate, Writing Tools. The card back and word detail use it for all their reading text; `showsFurigana` off drops the readings. Tested with `swift test --package-path Packages/KakeraUI`.
-- `kakera/UITests` — `KakeraUITests` (XCTest; Swift Testing can't drive an app): `ScreenshotTests` walks the screens in light and dark over the DEBUG-only demo deck (`DemoDeck`, `-demoDeck YES`). Run `scripts/screenshots.sh [simulator id]` → `screenshots/<name>.png` / `<name>-dark.png`, used by the README and the website. Never take them by hand.
+- `kakera/UITests` — `KakeraUITests` (XCTest; Swift Testing can't drive an app): `ScreenshotTests` walks the screens in light and dark over the DEBUG-only demo deck (`DemoDeck`, `-demoDeck YES`). Run `scripts/screenshots.sh [simulator id]` → `screenshots/<name>.png` / `<name>-dark.png`, used by the README and the website. Never take them by hand. A throwaway XCUITest in this folder is also the way to *see* something on the simulator (a dialog, the widget via Springboard's gallery): `xcodebuild test … -only-testing:KakeraUITests/<Probe>` with `TEST_RUNNER_SHOTS_DIR`, then delete it. In Xcode 27 the simulator window is Device Hub, not Simulator.app.
 - `website/` — the site at https://kakera.yancey.app (TanStack Start + Solid, from Hikki's site; standalone, `bun install` inside). `/privacy` is the App Store privacy policy — keep it true to what the app sends where. The home page plays Apple-style scroll scenes (pinned hero and tour driven by `--p` from `src/scroll.ts`, plus CSS scroll-driven `reveal`/`drift`/`slide-x`); only transform/opacity move, and `prefers-reduced-motion` gets a still layout. Screenshots: `(cd website && bun run shots ../screenshots)`.
 - `docs/superpowers/` — design spec (`specs/`) and per-package TDD implementation plans (`plans/`).
 - App icon: `kakera/Resources/AppIcon.icon`, an Icon Composer document (SVG layers + `icon.json`;
@@ -43,11 +43,13 @@ xcodebuild build -workspace kakera.xcworkspace -scheme Kakera -destination 'plat
 
 ### Testing rules (important)
 
-- **Pure packages run on macOS via `swift test`** (fast, no simulator):
+- **Pure packages run on macOS via `swift test`** (fast, no simulator). Use `xcrun swift test`:
+  a swiftly toolchain earlier in `PATH` (6.3) can't build against this Xcode's SDK and fails
+  with `unknown argument: '-target-arch-variant'` / `no such module 'SwiftData'`.
   ```bash
-  swift test --package-path Packages/KakeraFSRS
-  swift test --package-path Packages/KakeraAI
-  swift test --package-path Packages/KakeraServices
+  xcrun swift test --package-path Packages/KakeraFSRS
+  xcrun swift test --package-path Packages/KakeraAI
+  xcrun swift test --package-path Packages/KakeraServices
   ```
 - **KakeraCore (and any SwiftData test) MUST run on the iOS Simulator** — SwiftData `#Predicate`
   fetches SIGTRAP on the macOS test host. Run from the package directory, using the
@@ -71,8 +73,8 @@ xcodebuild build -workspace kakera.xcworkspace -scheme Kakera -destination 'plat
 
 ## Status (2026-07)
 
-Kernel green: KakeraCore (20 tests), KakeraFSRS (23), KakeraAI (18), KakeraServices (18). App green:
-26 tests in `KakeraTests` (run on the simulator).
+Kernel green: KakeraCore (20 tests), KakeraFSRS (23), KakeraAI (49), KakeraServices (32). App green:
+57 tests in `KakeraTests` (run on the simulator).
 
 The app is a `MainTabView` shell — Review / Quiz / Words / Stats / Settings — over one
 SwiftData store (a starter deck per language seeded at launch by `StarterSeed`).
@@ -93,13 +95,23 @@ views drop as they are redesigned). The "Again" rating is red (`KakeraColor.dang
   haptics and auto-playing Youdao pronunciation. Finishing a group offers a chained quiz.
 - **Quiz** — single-choice meaning quiz (`QuizGenerator` pure + `QuizStore`) that feeds
   FSRS (correct → good, wrong → again); also reachable as a follow-up to a review group.
-- **Words** — searchable list + authoring (`AddWordsView`: single form, batch paste via
-  `PastedWordsParser`, or **AI** generation via KakeraAI); swipe to delete.
+- **Words** — searchable list + authoring (`AddWordsView`: type or paste words, one per line
+  via `PastedWordsParser`, and **AI** generation via KakeraAI); swipe to delete. Generation is
+  **one request per word** (`AddWordsStore`, four in flight — the shortest request there is, and
+  each fails or succeeds alone; a non-streaming reply has 600 s before URLSession gives up): the
+  sheet lists the words with their state, and each card lands in the deck the moment it is
+  written (`BatchGeneration`'s `onChunk`). A word the model can't identify comes back in the
+  batch's `unrecognized` list with a reason and suggestions (prompted in `PromptBuilder`,
+  `CardSchema`), and the sheet offers the suggestions to pick from; a failed word shows its
+  reason with a retry, and every failure is logged **with its words**. The model's reply is
+  paired with the words by `GeneratedBatchMatcher` (case, width, ruby and a leading 〜 folded).
+  `RetryingTransport` retries 408/409/429/5xx up to six times, honouring `retry-after`.
 - **Stats** — Swift Charts dashboard (`StatsAggregator` pure): counts, 7-day bars, accuracy.
 - **Settings** — new-words-per-session, pronunciation accent/auto-play, and AI provider +
   API key (`AIConfigStore`, key stored in the Keychain). As in Exodus, a key is checked by
   fetching the provider's live model list (`KakeraAI.ModelListing`, Anthropic paged by
-  `after_id`, OpenAI filtered to chat models); the model is picked from that list, and its
+  `after_id`, OpenAI filtered to chat models) — on its own as the section opens, and on
+  "Reload models", which answers with a toast and a haptic; the model is picked from that list, and its
   own output ceiling (Anthropic's `max_tokens`) becomes the request's `max_tokens` — nothing
   is hardcoded: `AIConfigStore.readyConfiguration()` fetches the list first if the chosen
   model's ceiling is unknown, Claude without one fails with `noOutputLimit`, and OpenAI (whose
@@ -108,6 +120,13 @@ views drop as they are redesigned). The "Again" rating is red (`KakeraColor.dang
   Foundation Models provider, not a Messages client — revisit once iOS 27 ships. Requests
   are non-streaming, so they time out at 600 s, not URLSession's 60.
 
+- **Widget** (`kakera-widget`, `KakeraWidget`) — reads `ReviewWidgetSnapshot` from the App
+  Group (`WidgetSync` writes it on launch and backgrounding: due count, the three most overdue
+  words with reading and gloss, today's review count, when the next word comes). Small and
+  medium Home Screen families plus the Lock Screen accessories; `.widgetAccentable()` for the
+  tinted Home Screen; a tap opens `kakera://review` (`CFBundleURLTypes` in `Project.swift`,
+  `TabDeepLink` → `MainTabView.onOpenURL`). The snapshot decodes an older app's three-field
+  payload at the new fields' defaults.
 - **iCloud** — entitlements: CloudKit container, `aps-environment`, KVS (the starter deck is planted once per iCloud account: `starterSeeded.<language>` in `NSUbiquitousKeyValueStore`, only read while signed in). Settings → Sync shows the account status. Preferences stay per device. Before the first App Store release, deploy the CloudKit schema to Production in the CloudKit Console.
 
 Next: share extension + OCR intake, more quiz types.
