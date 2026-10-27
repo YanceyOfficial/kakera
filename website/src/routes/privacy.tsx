@@ -25,7 +25,7 @@ function PrivacyPolicy() {
           <h1 class="mincho text-[clamp(2.4rem,5vw,3.4rem)] leading-[1.1] font-bold tracking-[-0.01em]">
             Privacy policy
           </h1>
-          <p class="mt-4">Last updated October 19, 2026.</p>
+          <p class="mt-4">Last updated October 27, 2026.</p>
           <p>
             Kakera is a flashcard app for iPhone made by an independent developer. This
             policy explains what the app stores, where data goes when you use it, and what it never
@@ -44,6 +44,12 @@ function PrivacyPolicy() {
           <p>
             The API key you enter for an AI provider is stored in the iPhone's{' '}
             <strong>Keychain</strong>. It is never sent anywhere except to that provider.
+          </p>
+          <p>
+            Words you scan from a photo, or share to Kakera from another app, are recognized{' '}
+            <strong>on the iPhone</strong> (Apple's Vision text recognition) and wait in the app
+            until you add them. A photo is read once and not kept; the camera is used only while you
+            take the picture.
           </p>
 
           <h2>What leaves your iPhone, and when</h2>

@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import PhotosUI
 import KakeraCore
 import KakeraAI
 import KakeraUI
@@ -13,15 +14,31 @@ import KakeraServices
 /// model's suggestions to pick from), or failed (with the reason and a retry). Cards land
 /// one by one, so a batch of twenty isn't a spinner for ten minutes; when every word is
 /// in, the sheet closes on its own.
+///
+/// Words can also come from a picture — a photo from the library or the camera, read on
+/// the device by Vision — offered as chips to pick from (`WordPickerSheet`), or arrive
+/// already typed in from the share extension (`WordInbox`, `init(words:)`).
 struct AddWordsView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @Environment(ToastCenter.self) private var toast
 
-    @State private var pasted = ""
+    @State private var pasted: String
     /// Created when generation starts; the sheet shows its items from then on.
     @State private var store: AddWordsStore?
     @FocusState private var fieldFocused: Bool
+
+    @State private var showingPhotos = false
+    @State private var showingCamera = false
+    @State private var pickedPhoto: PhotosPickerItem?
+    @State private var isReading = false
+    /// Words read from a picture, offered to pick from.
+    @State private var scanned: ScannedWords?
+
+    /// - Parameter words: words to start with, one per line (the share extension's inbox).
+    init(words: [String] = []) {
+        _pasted = State(initialValue: words.joined(separator: "\n"))
+    }
 
     /// One lemma per non-empty line.
     private var lemmas: [String] { PastedWordsParser.lemmas(from: pasted) }
@@ -77,6 +94,7 @@ struct AddWordsView: View {
                     .autocorrectionDisabled()
                     .frame(minHeight: 160, alignment: .topLeading)
                     .focused($fieldFocused)
+                scanRow
             } header: {
                 Text("Words")
             } footer: {
@@ -92,6 +110,74 @@ struct AddWordsView: View {
             try? await Task.sleep(nanoseconds: 350_000_000)
             fieldFocused = true
         }
+        .photosPicker(isPresented: $showingPhotos, selection: $pickedPhoto, matching: .images)
+        .onChange(of: pickedPhoto) { _, item in
+            guard let item else { return }
+            pickedPhoto = nil
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self) { await read(data) }
+            }
+        }
+        .fullScreenCover(isPresented: $showingCamera) {
+            CameraPicker { data in Task { await read(data) } }
+                .ignoresSafeArea()
+        }
+        .sheet(item: $scanned) { found in
+            WordPickerSheet(
+                words: found.words, preselected: false,
+                footnote: "Read on this iPhone; nothing is sent. The picked words join the list to generate."
+            ) {
+                scanned = nil
+            } onAdd: { picked in
+                scanned = nil
+                let existing = pasted.trimmingCharacters(in: .whitespacesAndNewlines)
+                pasted = ((existing.isEmpty ? [] : [existing]) + picked).joined(separator: "\n")
+            }
+        }
+    }
+
+    /// The row under the text field: scan the words out of a photo.
+    private var scanRow: some View {
+        Menu {
+            Button { showingPhotos = true } label: { Label("Choose photo", systemImage: "photo.on.rectangle") }
+            if CameraPicker.isAvailable {
+                Button { showingCamera = true } label: { Label("Take photo", systemImage: "camera") }
+            }
+        } label: {
+            HStack {
+                Label("Scan words from a photo", systemImage: "text.viewfinder")
+                Spacer()
+                if isReading { ProgressView().controlSize(.small) }
+            }
+        }
+        .disabled(isReading)
+    }
+
+    /// Recognizes the text in a picture and offers its words.
+    private func read(_ data: Data) async {
+        isReading = true
+        defer { isReading = false }
+        let language: CandidateLanguage = AppSettings.studyLanguage == .japanese ? .japanese : .english
+        let recognizer = VisionTextRecognizer(languages: language == .japanese ? ["ja-JP", "en-US"] : ["en-US"])
+        let lines: [String]
+        do {
+            lines = try await recognizer.recognizeLines(in: data)
+        } catch {
+            toast.error("Couldn't read that picture: \(error.localizedDescription)", category: "scan")
+            return
+        }
+        let words = WordCandidateExtractor().candidates(from: lines, language: language)
+        guard !words.isEmpty else {
+            toast.error("No \(language == .japanese ? "Japanese" : "English") words in that picture", category: "scan")
+            return
+        }
+        scanned = ScannedWords(words: words)
+    }
+
+    /// The words read from one picture (an `Identifiable` for the sheet).
+    private struct ScannedWords: Identifiable {
+        let id = UUID()
+        let words: [String]
     }
 
     private func generate() {

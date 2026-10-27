@@ -1,10 +1,14 @@
 import SwiftUI
 
 /// A simple left-to-right wrapping layout (chips flow onto new lines as needed).
-struct FlowLayout: Layout {
-    var spacing: CGFloat = 8
+public struct FlowLayout: Layout {
+    public var spacing: CGFloat
 
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    public init(spacing: CGFloat = 8) {
+        self.spacing = spacing
+    }
+
+    public func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let maxWidth = proposal.width ?? .infinity
         var x: CGFloat = 0
         var rowHeight: CGFloat = 0
@@ -23,7 +27,7 @@ struct FlowLayout: Layout {
         return CGSize(width: maxWidth == .infinity ? x : maxWidth, height: totalHeight)
     }
 
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    public func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         var x = bounds.minX
         var y = bounds.minY
         var rowHeight: CGFloat = 0

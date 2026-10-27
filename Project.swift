@@ -30,6 +30,8 @@ let project = Project(
                         "UIImageName": "LaunchMark",
                     ],
                     "CFBundleDisplayName": "Kakera",
+                    // Scanning words from a photo (AddWordsView); recognition is on the device (Vision).
+                    "NSCameraUsageDescription": "Kakera reads the words in a photo you take, on this iPhone, so you can add them to your deck.",
                     // kakera://review etc. — the widget's tap lands on the Review tab (TabDeepLink).
                     "CFBundleURLTypes": [[
                         "CFBundleURLName": "app.yancey.kakera",
@@ -72,6 +74,42 @@ let project = Project(
                 .package(product: "KakeraServices"),
                 .package(product: "KakeraUI"),
                 .target(name: "KakeraWidget"),
+                .target(name: "KakeraShare"),
+            ]
+        ),
+        // "Add to Kakera" in any app's share sheet: the words of shared text or a picture, into the App
+        // Group inbox the app drains into its add-words sheet (WordInbox).
+        .target(
+            name: "KakeraShare",
+            destinations: .iOS,
+            product: .appExtension,
+            bundleId: "app.yancey.kakera.share",
+            deploymentTargets: .iOS("17.0"),
+            infoPlist: .extendingDefault(
+                with: [
+                    "CFBundleDisplayName": "Add to Kakera",
+                    "NSExtension": [
+                        "NSExtensionPointIdentifier": "com.apple.share-services",
+                        "NSExtensionPrincipalClass": "$(PRODUCT_MODULE_NAME).ShareViewController",
+                        "NSExtensionAttributes": [
+                            "NSExtensionActivationRule": [
+                                "NSExtensionActivationSupportsText": true,
+                                "NSExtensionActivationSupportsImageWithMaxCount": 1,
+                            ],
+                        ],
+                    ],
+                ]
+            ),
+            buildableFolders: [
+                "kakera-share/Sources",
+                "kakera-share/Resources",
+            ],
+            entitlements: .dictionary([
+                "com.apple.security.application-groups": ["group.app.yancey.kakera"],
+            ]),
+            dependencies: [
+                .package(product: "KakeraServices"),
+                .package(product: "KakeraUI"),
             ]
         ),
         .target(

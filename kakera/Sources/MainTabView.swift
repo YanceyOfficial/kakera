@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import KakeraServices
 import KakeraUI
 
 /// The app's tab shell: review, word list, stats, and settings. Each tab builds its
@@ -12,6 +13,12 @@ struct MainTabView: View {
     /// rebuilds them all (the `.id` below), keeping the selected tab.
     @AppStorage(AppSettings.studyLanguageKey) private var studyLanguageRaw = "english"
     @AppStorage("showFurigana") private var showFurigana = true
+    @Environment(\.scenePhase) private var scenePhase
+    /// Words the share extension left in the App Group inbox, handed to the Words tab.
+    @State private var inboxWords: [String] = []
+    #if DEBUG
+    @State private var plantedInbox = false
+    #endif
 
     var body: some View {
         TabView(selection: $selection) {
@@ -21,7 +28,7 @@ struct MainTabView: View {
                 .tag(0)
                 .tabItem { Label("Review", systemImage: "rectangle.on.rectangle.angled") }
 
-            WordsListView()
+            WordsListView(inboxWords: $inboxWords)
                 .clearOfTopEdge()
                 .tabBarGivesWayToDial()
                 .tag(1)
@@ -44,6 +51,11 @@ struct MainTabView: View {
         .onOpenURL { url in
             if let tab = TabDeepLink.tab(for: url) { selection = tab }
         }
+        // Words shared to Kakera while it was away: open the add-words sheet on them.
+        .task { drainInbox() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { drainInbox() }
+        }
         .environment(\.showsFurigana, showFurigana)
         .tint(KakeraColor.accent)
         .minimizingTabBarOnScroll()
@@ -57,6 +69,20 @@ struct MainTabView: View {
         SpeedDialItem(id: 2, title: "Stats", systemImage: "chart.bar.xaxis"),
         SpeedDialItem(id: 3, title: "Settings", systemImage: "gearshape"),
     ]
+
+    private func drainInbox() {
+        #if DEBUG
+        // `-inbox eccentric,obsession` stands in for a share, for UI screenshots.
+        if !plantedInbox, let planted = UserDefaults.standard.string(forKey: "inbox") {
+            plantedInbox = true
+            WordInbox().add(planted.split(separator: ",").map(String.init))
+        }
+        #endif
+        let words = WordInbox().drain()
+        guard !words.isEmpty else { return }
+        selection = 1
+        inboxWords = words
+    }
 
     private static func initialSelection() -> Int {
         switch UserDefaults.standard.string(forKey: "startTab") {

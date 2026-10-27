@@ -9,6 +9,10 @@ struct WordsListView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(ToastCenter.self) private var toast
 
+    /// Words that arrived from outside (the share extension's inbox): the add-words sheet
+    /// opens on them, and they are cleared when it closes.
+    @Binding var inboxWords: [String]
+
     @State private var entries: [VocabularyEntry] = []
     @State private var showingAdd = false
     @State private var searchText = ""
@@ -73,11 +77,18 @@ struct WordsListView: View {
                 .padding(.top, KakeraSpacing.l)
             }
             .toolbar(.hidden, for: .navigationBar)
-            .sheet(isPresented: $showingAdd, onDismiss: reload) {
-                AddWordsView()
+            .sheet(isPresented: $showingAdd, onDismiss: { inboxWords = []; reload() }) {
+                AddWordsView(words: inboxWords)
             }
         }
         .task { reload() }
+        .task(id: inboxWords) {
+            if !inboxWords.isEmpty { showingAdd = true }
+        }
+    }
+
+    init(inboxWords: Binding<[String]> = .constant([])) {
+        _inboxWords = inboxWords
     }
 
     private func tagChip(_ tag: String) -> some View {

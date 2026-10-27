@@ -8,7 +8,13 @@ import AppKit
 
 /// Production text recognizer backed by Vision. Compiled for the app; not unit-tested.
 public struct VisionTextRecognizer: TextRecognizer {
-    public init() {}
+    private let languages: [String]
+
+    /// - Parameter languages: the languages to read, by preference (`"ja-JP"`, `"en-US"`);
+    ///   empty leaves Vision to its default.
+    public init(languages: [String] = []) {
+        self.languages = languages
+    }
 
     public func recognizeLines(in imageData: Data) async throws -> [String] {
         guard let cgImage = Self.decode(imageData) else { return [] }
@@ -21,6 +27,7 @@ public struct VisionTextRecognizer: TextRecognizer {
             }
             request.recognitionLevel = .accurate
             request.usesLanguageCorrection = true
+            if !languages.isEmpty { request.recognitionLanguages = languages }
             let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
             do { try handler.perform([request]) } catch { continuation.resume(throwing: error) }
         }
