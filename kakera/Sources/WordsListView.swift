@@ -51,6 +51,7 @@ struct WordsListView: View {
                                 .foregroundStyle(KakeraColor.vermilion)
                         }
                         .buttonStyle(KakeraPressStyle())
+                        .accessibilityLabel("Add words")
                     }
                     .padding(.horizontal, KakeraSpacing.l)
 

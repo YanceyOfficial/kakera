@@ -152,27 +152,23 @@ struct AddWordsView: View {
 
     private func row(_ item: AddWordsStore.Item, store: AddWordsStore) -> some View {
         VStack(alignment: .leading, spacing: KakeraSpacing.xs) {
-            HStack(alignment: .firstTextBaseline, spacing: KakeraSpacing.s) {
+            // The mark sits in a fixed box, centred on the word: the spinner and the symbols
+            // take the same room, so every row has the same shape whatever its state.
+            HStack(alignment: .center, spacing: KakeraSpacing.s) {
                 Text(item.word)
                     .font(KakeraFont.display(17, weight: .semibold))
                     .foregroundStyle(KakeraColor.sumi)
                 Spacer(minLength: KakeraSpacing.s)
                 statusMark(item.status)
+                    .frame(width: 22, height: 22)
             }
+            // One line of detail in one voice for every state; the mark carries the colour.
+            Text(detail(item.status))
+                .font(KakeraFont.body(13))
+                .foregroundStyle(KakeraColor.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
             switch item.status {
-            case .queued:
-                detail("Waiting")
-            case .generating:
-                detail("Writing the card…")
-            case .added(let gloss):
-                detail(gloss)
-            case .alreadyInDeck:
-                detail("Already in your deck")
-            case .unrecognized(let reason, let suggestions):
-                Text("Not recognized — \(reason)")
-                    .font(KakeraFont.body(13))
-                    .foregroundStyle(KakeraColor.sumi)
-                    .fixedSize(horizontal: false, vertical: true)
+            case .unrecognized(_, let suggestions):
                 if !suggestions.isEmpty {
                     FlowLayout(spacing: 6) {
                         Text("Did you mean")
@@ -192,31 +188,37 @@ struct AddWordsView: View {
                         }
                     }
                 }
-                Button("Remove", role: .destructive) { store.remove(item.id) }
-                    .font(KakeraFont.body(14, weight: .semibold))
-                    .buttonStyle(.borderless)
-            case .failed(let message):
-                Text(message)
-                    .font(KakeraFont.body(13))
-                    .foregroundStyle(KakeraColor.danger)
-                    .fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: KakeraSpacing.m) {
-                    Button("Try again") { store.retry(item.id) }
-                        .font(KakeraFont.body(14, weight: .semibold))
-                    Button("Remove", role: .destructive) { store.remove(item.id) }
-                        .font(KakeraFont.body(14, weight: .semibold))
-                }
-                .buttonStyle(.borderless)
+                actions(item, store: store, retry: false)
+            case .failed:
+                actions(item, store: store, retry: true)
+            case .queued, .generating, .added, .alreadyInDeck:
+                EmptyView()
             }
         }
         .padding(.vertical, 2)
     }
 
-    private func detail(_ text: String) -> some View {
-        Text(text)
-            .font(KakeraFont.body(13))
-            .foregroundStyle(KakeraColor.inkSecondary)
-            .lineLimit(2)
+    private func detail(_ status: AddWordsStore.Status) -> String {
+        switch status {
+        case .queued: "Waiting"
+        case .generating: "Writing the card…"
+        case .added(let gloss): gloss
+        case .alreadyInDeck: "Already in your deck"
+        case .unrecognized(let reason, _): "Not recognized — \(reason)"
+        case .failed(let message): message
+        }
+    }
+
+    /// Try again (after a failure) and Remove, in one row.
+    private func actions(_ item: AddWordsStore.Item, store: AddWordsStore, retry: Bool) -> some View {
+        HStack(spacing: KakeraSpacing.m) {
+            if retry {
+                Button("Try again") { store.retry(item.id) }
+            }
+            Button("Remove", role: .destructive) { store.remove(item.id) }
+        }
+        .font(KakeraFont.body(14, weight: .semibold))
+        .buttonStyle(.borderless)
     }
 
     @ViewBuilder
