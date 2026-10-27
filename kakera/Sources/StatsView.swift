@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import Charts
 import KakeraCore
 import KakeraUI

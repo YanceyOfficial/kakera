@@ -4,6 +4,7 @@ import CoreData
 import Combine
 import KakeraCore
 import KakeraUI
+import KakeraServices
 
 /// App root: seeds the starter deck once, then hosts the tab shell. Real navigation
 /// (decks, entry authoring, stats) lives inside the tabs.
@@ -61,7 +62,9 @@ struct RootView: View {
                 try? StarterSeed.seedIfEmpty(repository, language: language)
                 iCloud.set(true, forKey: "starterSeeded.\(language.rawValue)")
             }
-            try? repository.mergeDuplicates()
+            if let merged = try? repository.mergeDuplicates(), merged > 0 {
+                AppLog.shared.info("Folded \(merged) duplicate words at launch", category: "sync")
+            }
             seeded = true
             // Keep the daily reminder in sync with settings + deck state on launch.
             let enabled = UserDefaults.standard.bool(forKey: "reminderEnabled")
@@ -73,7 +76,9 @@ struct RootView: View {
         // iCloud brought in changes: fold any twins they made (a word added on two devices) into one.
         .onReceive(NotificationCenter.default.publisher(for: .NSPersistentStoreRemoteChange)
             .debounce(for: .seconds(2), scheduler: RunLoop.main)) { _ in
-            try? VocabularyRepository(context: modelContext).mergeDuplicates()
+            if let merged = try? VocabularyRepository(context: modelContext).mergeDuplicates(), merged > 0 {
+                AppLog.shared.info("Folded \(merged) duplicate words from iCloud", category: "sync")
+            }
         }
         .onChange(of: scenePhase) { _, phase in
             // Refresh the widget's due count as the app leaves the foreground.

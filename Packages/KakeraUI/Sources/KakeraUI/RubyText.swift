@@ -12,7 +12,21 @@ public extension EnvironmentValues {
     /// Told when a `RubyText` gains or loses a selection: the text view's identity and
     /// whether it now has one. A container whose own gestures would fight the selection
     /// handles (the flip card's swipe) holds them while any selection is active.
-    @Entry var textSelectionChanged: ((AnyHashable, Bool) -> Void)? = nil
+    @Entry var textSelectionChanged: TextSelectionHandler? = nil
+}
+
+/// What a container does when a `RubyText` in it gains or loses a selection (see
+/// `EnvironmentValues.textSelectionChanged`). Any two handlers compare equal — a closure can't
+/// be compared, and one set afresh on every update must not re-render every text view — so a
+/// container sets one for its lifetime and reads its own state from inside it.
+public struct TextSelectionHandler: Equatable {
+    let handle: (AnyHashable, Bool) -> Void
+
+    public init(_ handle: @escaping (AnyHashable, Bool) -> Void) {
+        self.handle = handle
+    }
+
+    public static func == (lhs: Self, rhs: Self) -> Bool { true }
 }
 
 /// Reading text: selectable, and with furigana when it carries ruby markup
@@ -125,7 +139,7 @@ private struct SelectableTextView: UIViewRepresentable {
     }
 
     func updateUIView(_ view: UITextView, context: Context) {
-        context.coordinator.onChange = context.environment.textSelectionChanged
+        context.coordinator.onChange = context.environment.textSelectionChanged?.handle
         // Readings sit between lines: give them room above the first line too, so they
         // never touch the text above this view.
         let top = hasRuby ? (size * 0.7).rounded() : 0

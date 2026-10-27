@@ -14,7 +14,7 @@ in English and Japanese (one deck per language, switched in the app). SwiftUI + 
   - `KakeraCore` — SwiftData models, enums, value types, `VocabularyRepository`, and `ReviewScheduler` (bridges the persisted `SchedulingState` to KakeraFSRS). **Synced through CloudKit** (`KakeraModelContainer.onDisk(cloudKitContainer:)`, private database of `iCloud.app.yancey.kakera`), so modeling stays CloudKit-safe: defaults/optionals, no relationships, no `@Attribute(.unique)`. Dedupe is in code: `VocabularyRepository.mergeDuplicates()` folds the twins sync creates (survivor = first-created, then smallest id — the same on every device — taking over the most-reviewed twin's schedule, logs, tags, notes); `RootView` runs it at launch and on `NSPersistentStoreRemoteChange`. Depends on KakeraFSRS.
   - `KakeraFSRS` — pure FSRS-6 spaced-repetition algorithm. Zero dependencies. Validated against ts-fsrs.
   - `KakeraAI` — `LLMProvider` protocol + Claude/OpenAI structured-output over `URLSession` (`HTTPTransport` is injectable). Produces Codable DTOs, not SwiftData. Depends on KakeraCore (enums only).
-  - `KakeraServices` — logging (`os.Logger`), Keychain (`SecretStore`), FSRS-driven forgetting-push scheduling + quiet hours, Vision OCR, word pronunciation (`PronunciationVoice`: Youdao dictvoice via `AVPlayer` — English by `type`, Japanese by `le=jap`, said by its kana reading (`JapaneseSpeech`); whatever Youdao has no audio for, e.g. a Japanese sentence or no network, falls back to `AVSpeechSynthesizer`). Depends on KakeraFSRS. Pattern: **protocol + pure (tested) logic + thin platform adapter (compiled, not unit-tested)**.
+  - `KakeraServices` — logging (`os.Logger`), Keychain (`SecretStore`), FSRS-driven forgetting-push scheduling + quiet hours, Vision OCR, word pronunciation (`PronunciationVoice`: Youdao dictvoice via `AVPlayer` — English by `type`, Japanese by `le=jap`, said by its kana reading (`JapaneseSpeech`); whatever Youdao has no audio for, e.g. a Japanese sentence or no network, falls back to `AVSpeechSynthesizer`). Depends on KakeraFSRS. Pattern: **protocol + pure (tested) logic + thin platform adapter (compiled, not unit-tested — except Vision OCR, which runs on macOS too and is)**. The pronunciation player activates the audio session once, off the main thread (Xcode flags `setActive` on the main thread as a hang risk); the first play waits for it.
   - `KakeraUI` — the design system (`KakeraColor`/`KakeraFont`/`KakeraSpacing`, `KakeraMotion` springs + gesture math, `FlipCard`, `KakeraMark`, toasts) and ruby: `Ruby` parses the inline furigana markup `{漢字|かんじ}` the AI writes into Japanese sentences (`plain` / `reading`), and `RubyText` shows reading text: a read-only **TextKit 2** `UITextView` (TextKit 1 ignores Core Text ruby), so the system lays out the furigana (overhang, kinsoku) and a long press selects any span for the system edit menu — Copy, Look Up, Translate, Writing Tools. The card back and word detail use it for all their reading text; `showsFurigana` off drops the readings. Tested with `swift test --package-path Packages/KakeraUI`.
 - `kakera-share/` — `KakeraShare` (`app.yancey.kakera.share`), "Add to Kakera" in any app's share sheet: takes text or one
   picture, finds its words on the device (`VisionTextRecognizer` + `WordCandidateExtractor`, in the study language the
@@ -85,7 +85,7 @@ xcodebuild build -workspace kakera.xcworkspace -scheme Kakera -destination 'plat
 
 ## Status (2026-07)
 
-Kernel green: KakeraCore (30 tests), KakeraFSRS (23), KakeraAI (50), KakeraServices (37), KakeraUI (20). App green:
+Kernel green: KakeraCore (30 tests), KakeraFSRS (23), KakeraAI (50), KakeraServices (38), KakeraUI (20). App green:
 75 tests in `KakeraTests` (run on the simulator).
 
 The app is a `MainTabView` shell — Review / Words / Stats / Settings — over one
@@ -131,7 +131,12 @@ views drop as they are redesigned). The "Again" rating is red (`KakeraColor.dang
   `CameraPicker`, `NSCameraUsageDescription`) reads the picture on the device (Vision, `ja-JP` first for Japanese) and
   offers the words as chips; the share extension (`kakera-share/`) does the same for shared text or a picture and
   parks the picks in `WordInbox`, which opens this sheet prefilled (`AddWordsView(words:)`; `-inbox a,b` plants
-  words in DEBUG for screenshots). `WordCandidateExtractor` drops English function words and, for Japanese, segments
+  words in DEBUG for screenshots; `-demoCamera YES` offers "Take photo" on the simulator and hands back a rendered
+  page). The camera's photo is read only once the camera has left the screen (a sheet presented while it is still
+  leaving is dropped), reading shows an overlay, and a scan that finds nothing says why under the scan row — a toast
+  would show behind the sheet. `VisionTextRecognizer` decodes through ImageIO at 3000 px on the long side, turned the
+  way the EXIF orientation says, and recognizes off the calling thread; it is exercised on macOS by its own test.
+  `WordCandidateExtractor` drops English function words and, for Japanese, segments
   with `NLTokenizer` keeping tokens with a kanji or katakana or three-plus hiragana (particles and auxiliaries fall out;
   a conjugated verb comes as its stem).
 - **Stats** — Swift Charts dashboard (`StatsAggregator` pure): counts, 7-day bars, accuracy.

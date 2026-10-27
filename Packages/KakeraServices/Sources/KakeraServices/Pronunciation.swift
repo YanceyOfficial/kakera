@@ -114,19 +114,29 @@ public final class PronunciationPlayer: PronunciationPlaying {
     private var statusObservation: NSKeyValueObservation?
     private let synthesizer = AVSpeechSynthesizer()
     private let logger: AppLogger
-    private var sessionConfigured = false
+    /// Counts plays, so a play still waiting for the audio session gives way to a later one.
+    private var generation = 0
 
     public init(logger: AppLogger = AppLogger(sink: OSLogSink())) {
         self.logger = logger
     }
 
     public func play(_ text: String, voice: PronunciationVoice) {
-        configureSessionIfNeeded()
         stop()
         guard let url = PronunciationURL.youdao(for: text, voice: voice) else {
             logger.warning("No pronunciation URL for '\(text)'", category: "audio")
             return
         }
+        let generation = generation
+        Task { [weak self] in
+            await Self.sessionActivation.value
+            guard let self, self.generation == generation else { return }
+            self.start(url, text: text, voice: voice)
+        }
+    }
+
+    /// Plays `url`, falling back to the system voice when it has no audio.
+    private func start(_ url: URL, text: String, voice: PronunciationVoice) {
         let item = AVPlayerItem(url: url)
         let player = AVPlayer(playerItem: item)
         // Youdao answers what it cannot voice with an error body, which fails the item.
@@ -150,24 +160,25 @@ public final class PronunciationPlayer: PronunciationPlaying {
     }
 
     private func stop() {
+        generation += 1
         statusObservation = nil
         player?.pause()
         player = nil
         if synthesizer.isSpeaking { synthesizer.stopSpeaking(at: .immediate) }
     }
 
-    /// Activate a playback audio session once, lazily. Best-effort: a failure here
-    /// only means the sound may respect the mute switch, never a crash.
-    private func configureSessionIfNeeded() {
+    /// The playback audio session, activated once, off the main thread: activation waits on the
+    /// audio server, which Xcode flags as a hang risk on the main thread. The first play waits for
+    /// it; later ones find it done. Best-effort: a failure only means the sound may respect the
+    /// mute switch, never a crash.
+    private static let sessionActivation = Task.detached(priority: .userInitiated) {
         #if os(iOS)
-        guard !sessionConfigured else { return }
         do {
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
             try session.setActive(true)
-            sessionConfigured = true
         } catch {
-            logger.error("Audio session setup failed: \(error.localizedDescription)", category: "audio")
+            AppLog.shared.error("Audio session setup failed: \(error.localizedDescription)", category: "audio")
         }
         #endif
     }

@@ -1,4 +1,5 @@
 import SwiftUI
+import KakeraCore
 import KakeraUI
 import KakeraServices
 

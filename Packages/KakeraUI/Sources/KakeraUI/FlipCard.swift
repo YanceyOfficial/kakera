@@ -131,9 +131,9 @@ public struct FlipCard<Back: View>: View {
 
     /// The back, telling the card when its text is being selected.
     private var backWithSelectionLock: some View {
-        back.environment(\.textSelectionChanged) { id, selected in
+        back.environment(\.textSelectionChanged, TextSelectionHandler { id, selected in
             if selected { selections.insert(id) } else { selections.remove(id) }
-        }
+        })
     }
 
     private var front: some View {
@@ -285,7 +285,7 @@ public struct FlipCard<Back: View>: View {
     }
 
     private func endSwipe(velocity: Double) {
-        guard let onSwipe else { return }
+        guard onSwipe != nil else { return }
         pastThreshold = false
         switch KakeraMotion.swipeOutcome(translation: swipe, velocity: velocity, width: width) {
         case .commit(let direction):

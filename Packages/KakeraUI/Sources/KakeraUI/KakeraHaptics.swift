@@ -14,6 +14,7 @@ public enum KakeraHaptics {
     }
 
     /// A short impact — used when a card flips or a button is committed.
+    @MainActor
     public static func impact(_ style: Impact) {
         #if canImport(UIKit)
         let generator: UIImpactFeedbackGenerator
@@ -28,6 +29,7 @@ public enum KakeraHaptics {
     }
 
     /// A crisp selection tick — used when moving between discrete choices.
+    @MainActor
     public static func selection() {
         #if canImport(UIKit)
         UISelectionFeedbackGenerator().selectionChanged()
@@ -35,6 +37,7 @@ public enum KakeraHaptics {
     }
 
     /// A semantic notification buzz — used to celebrate completion.
+    @MainActor
     public static func success() {
         #if canImport(UIKit)
         UINotificationFeedbackGenerator().notificationOccurred(.success)
