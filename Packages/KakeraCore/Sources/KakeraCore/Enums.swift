@@ -51,6 +51,8 @@ public enum QuizType: String, Codable, CaseIterable, Sendable {
     case listeningSpelling  // Listening and spelling (words only)
     case meaningMatch       // Meaning matching
     case contextCloze       // Context cloze
+    case wordChoice         // The meaning is given; the word is picked among the deck's (built by the app)
+    case spelling           // The meaning is given; the word is typed (built by the app)
 
     /// Whether this question type is applicable to the given entry kind.
     /// Syllable combining and listening-spelling depend on syllable segmentation; only applicable to words; phrases are always excluded.
@@ -58,7 +60,7 @@ public enum QuizType: String, Codable, CaseIterable, Sendable {
         switch self {
         case .splitCombine, .listeningSpelling:
             return kind == .word
-        case .singleChoice, .fillInBlank, .meaningMatch, .contextCloze:
+        case .singleChoice, .fillInBlank, .meaningMatch, .contextCloze, .wordChoice, .spelling:
             return true
         }
     }

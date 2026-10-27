@@ -2,9 +2,10 @@ import SwiftUI
 import KakeraUI
 import KakeraServices
 
-/// A quiz session over the just-reviewed words. Questions vary by type: tap a choice, or
-/// type the answer (fill-in-blank / listening). A wrong answer re-grades the word as
-/// "again" via `QuizStore` (the double-check); a correct answer is a no-op.
+/// A quiz session over the just-reviewed words. Questions vary by type: tap a choice,
+/// type the answer (fill-in-blank / listening / spelling), or tap tiles in order to
+/// assemble the word. A wrong answer re-grades the word as "again" via `QuizStore` (the
+/// double-check); a correct answer is a no-op.
 struct QuizSessionView: View {
     let store: QuizStore
     /// When set (the quiz was chained after a review), completion offers "Back to
@@ -14,6 +15,7 @@ struct QuizSessionView: View {
     @State private var index = 0
     @State private var selected: Int?          // chosen option (choice mode)
     @State private var textInput = ""          // typed answer (text mode)
+    @State private var picked: [Int] = []      // tiles tapped so far, in order (tile mode)
     @State private var responded = false       // this question has been answered
     @State private var wasCorrect = false
     @State private var correctCount = 0
@@ -45,10 +47,10 @@ struct QuizSessionView: View {
                         VStack(spacing: KakeraSpacing.l) {
                             promptCard(question)
                             Group {
-                                if question.isTextEntry {
-                                    textEntry(question)
-                                } else {
-                                    optionsList(question)
+                                switch question.mode {
+                                case .choice: optionsList(question)
+                                case .text: textEntry(question)
+                                case .tiles: tileEntry(question)
                                 }
                             }
                             .kakeraShake(trigger: misses)
@@ -104,6 +106,15 @@ struct QuizSessionView: View {
                     Text(language == .japanese ? "Type the reading you hear" : "Spell what you hear")
                         .font(KakeraFont.body(14, weight: .medium))
                         .foregroundStyle(KakeraColor.inkSecondary)
+                } else if question.promptsWithMeaning {
+                    // The meaning is the headline; the word is what the learner produces.
+                    Text(question.question)
+                        .font(KakeraFont.display(26, weight: .bold))
+                        .foregroundStyle(KakeraColor.sumi)
+                        .multilineTextAlignment(.center)
+                    Text(instruction(for: question))
+                        .font(KakeraFont.body(14, weight: .medium))
+                        .foregroundStyle(KakeraColor.inkSecondary)
                 } else {
                     Text("? ? ?")
                         .font(KakeraFont.display(34, weight: .bold))
@@ -132,9 +143,16 @@ struct QuizSessionView: View {
                 }
             }
 
-            if !question.question.isEmpty {
+            // The sentence under the word — or, once answered, the meaning that was the headline.
+            if !question.question.isEmpty, responded || !question.promptsWithMeaning {
                 RubyText(question.question, size: 16, alignment: .center)
                     .padding(.top, KakeraSpacing.xs)
+            }
+            if responded, !question.translation.isEmpty {
+                Text(question.translation)
+                    .font(KakeraFont.body(14))
+                    .foregroundStyle(KakeraColor.inkSecondary)
+                    .multilineTextAlignment(.center)
             }
         }
         .frame(maxWidth: .infinity)
@@ -145,6 +163,15 @@ struct QuizSessionView: View {
                 .fill(KakeraColor.cardFace)
                 .shadow(color: KakeraColor.shadow, radius: 14, x: 0, y: 8)
         )
+    }
+
+    /// What to do with the meaning shown.
+    private func instruction(for question: QuizQuestion) -> String {
+        switch question.mode {
+        case .choice: "Which word is it?"
+        case .text: language == .japanese ? "Type the word in kana" : "Type the word"
+        case .tiles: "Tap the pieces in order"
+        }
     }
 
     // MARK: Choice mode
@@ -195,6 +222,7 @@ struct QuizSessionView: View {
         }
         .buttonStyle(KakeraPressStyle())
         .disabled(responded)
+        .accessibilityIdentifier("quiz.option.\(optionIndex)")
     }
 
     // MARK: Text mode
@@ -238,6 +266,77 @@ struct QuizSessionView: View {
         return wasCorrect ? pine : miss
     }
 
+    // MARK: Tile mode
+
+    /// The word assembled from tiles: the pieces tapped so far sit in the answer box (tap
+    /// one to put it back); the bank below keeps a gap where each came from.
+    private func tileEntry(_ question: QuizQuestion) -> some View {
+        VStack(spacing: KakeraSpacing.m) {
+            FlowLayout(spacing: 8) {
+                ForEach(picked, id: \.self) { index in
+                    tile(question.choices[index]) { unpick(index) }
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .padding(KakeraSpacing.s)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous).fill(KakeraColor.cardFace)
+                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(textFieldTint, lineWidth: 1.5))
+            )
+
+            FlowLayout(spacing: 8) {
+                ForEach(Array(question.choices.enumerated()), id: \.offset) { pair in
+                    tile(pair.element) { pick(pair.offset) }
+                        .opacity(picked.contains(pair.offset) ? 0 : 1)
+                        .disabled(picked.contains(pair.offset) || responded)
+                        .accessibilityIdentifier("quiz.tile.\(pair.offset)")
+                }
+            }
+            .frame(maxWidth: .infinity)
+
+            if responded {
+                HStack(spacing: KakeraSpacing.s) {
+                    Image(systemName: wasCorrect ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        .foregroundStyle(wasCorrect ? pine : miss)
+                    Text(wasCorrect ? "Correct" : "Answer: \(question.answers.first ?? question.word)")
+                        .font(KakeraFont.body(15, weight: .medium))
+                        .foregroundStyle(KakeraColor.sumi)
+                }
+            } else {
+                KakeraPrimaryButton("Check") { submitTiles(question) }
+                    .frame(maxWidth: 200)
+                    .opacity(picked.isEmpty ? 0.5 : 1)
+                    .disabled(picked.isEmpty)
+            }
+        }
+    }
+
+    private func tile(_ text: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(text)
+                .font(KakeraFont.body(17, weight: .medium))
+                .foregroundStyle(KakeraColor.sumi)
+                .padding(.horizontal, KakeraSpacing.m)
+                .padding(.vertical, KakeraSpacing.s)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(KakeraColor.cardFace))
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(KakeraColor.hairline, lineWidth: 1.5))
+        }
+        .buttonStyle(KakeraPressStyle())
+    }
+
+    private func pick(_ index: Int) {
+        guard !responded, !picked.contains(index) else { return }
+        KakeraHaptics.impact(.light)
+        withAnimation(KakeraMotion.snappy) { picked.append(index) }
+    }
+
+    private func unpick(_ index: Int) {
+        guard !responded else { return }
+        withAnimation(KakeraMotion.snappy) { picked.removeAll { $0 == index } }
+    }
+
     // MARK: Completion
 
     private var completed: some View {
@@ -277,6 +376,11 @@ struct QuizSessionView: View {
         grade(question, .text(textInput))
     }
 
+    private func submitTiles(_ question: QuizQuestion) {
+        guard !responded, !picked.isEmpty else { return }
+        grade(question, .text(picked.map { question.choices[$0] }.joined()))
+    }
+
     private func grade(_ question: QuizQuestion, _ response: QuizResponse) {
         responded = true
         let correct = store.submit(question, response)
@@ -299,6 +403,7 @@ struct QuizSessionView: View {
         withAnimation(KakeraMotion.standard) {
             selected = nil
             textInput = ""
+            picked = []
             responded = false
             wasCorrect = false
             index += 1
@@ -315,6 +420,7 @@ struct QuizSessionView: View {
             index = 0
             selected = nil
             textInput = ""
+            picked = []
             responded = false
             correctCount = 0
         }
