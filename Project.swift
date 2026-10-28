@@ -1,5 +1,13 @@
 import ProjectDescription
 
+/// Every shipped bundle's version, from the project's MARKETING_VERSION / CURRENT_PROJECT_VERSION
+/// (Tuist's default Info.plist hardcodes 1.0 / 1). App Store Connect rejects an extension whose
+/// version differs from its app's.
+let releaseVersion: [String: Plist.Value] = [
+    "CFBundleShortVersionString": "$(MARKETING_VERSION)",
+    "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
+]
+
 let project = Project(
     name: "kakera",
     packages: [
@@ -11,6 +19,10 @@ let project = Project(
     ],
     settings: .settings(base: [
         "SWIFT_VERSION": "6.0",
+        // The release, three-part (1.1.0, never 1.1): the app and its extensions all read it.
+        "MARKETING_VERSION": "1.1.0",
+        // The build of that release; raise it for every upload to App Store Connect.
+        "CURRENT_PROJECT_VERSION": "2",
         // The Apple Developer Program team.
         "DEVELOPMENT_TEAM": "A542S7SY83",
     ]),
@@ -22,7 +34,7 @@ let project = Project(
             bundleId: "app.yancey.kakera",
             deploymentTargets: .iOS("17.0"),
             infoPlist: .extendingDefault(
-                with: [
+                with: releaseVersion.merging([
                     // The mark on the app's background, from scripts/generate_app_icon.swift;
                     // LaunchSplash picks up from this exact frame.
                     "UILaunchScreen": [
@@ -51,7 +63,7 @@ let project = Project(
                         "UIInterfaceOrientationPortrait", "UIInterfaceOrientationPortraitUpsideDown",
                         "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight",
                     ],
-                ]
+                ]) { _, own in own }
             ),
             buildableFolders: [
                 "kakera/Sources",
@@ -86,7 +98,7 @@ let project = Project(
             bundleId: "app.yancey.kakera.share",
             deploymentTargets: .iOS("17.0"),
             infoPlist: .extendingDefault(
-                with: [
+                with: releaseVersion.merging([
                     "CFBundleDisplayName": "Add to Kakera",
                     "NSExtension": [
                         "NSExtensionPointIdentifier": "com.apple.share-services",
@@ -98,7 +110,7 @@ let project = Project(
                             ],
                         ],
                     ],
-                ]
+                ]) { _, own in own }
             ),
             buildableFolders: [
                 "kakera-share/Sources",
@@ -119,12 +131,12 @@ let project = Project(
             bundleId: "app.yancey.kakera.widget",
             deploymentTargets: .iOS("17.0"),
             infoPlist: .extendingDefault(
-                with: [
+                with: releaseVersion.merging([
                     "CFBundleDisplayName": "Kakera",
                     "NSExtension": [
                         "NSExtensionPointIdentifier": "com.apple.widgetkit-extension",
                     ],
-                ]
+                ]) { _, own in own }
             ),
             buildableFolders: [
                 "kakera-widget/Sources",
