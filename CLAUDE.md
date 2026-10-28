@@ -85,7 +85,7 @@ xcodebuild build -workspace kakera.xcworkspace -scheme Kakera -destination 'plat
 
 ## Status (2026-07)
 
-Kernel green: KakeraCore (30 tests), KakeraFSRS (23), KakeraAI (50), KakeraServices (38), KakeraUI (20). App green:
+Kernel green: KakeraCore (30 tests), KakeraFSRS (23), KakeraAI (50), KakeraServices (40), KakeraUI (20). App green:
 75 tests in `KakeraTests` (run on the simulator).
 
 The app is a `MainTabView` shell — Review / Words / Stats / Settings — over one
@@ -136,9 +136,12 @@ views drop as they are redesigned). The "Again" rating is red (`KakeraColor.dang
   leaving is dropped), reading shows an overlay, and a scan that finds nothing says why under the scan row — a toast
   would show behind the sheet. `VisionTextRecognizer` decodes through ImageIO at 3000 px on the long side, turned the
   way the EXIF orientation says, and recognizes off the calling thread; it is exercised on macOS by its own test.
-  `WordCandidateExtractor` drops English function words and, for Japanese, segments
-  with `NLTokenizer` keeping tokens with a kanji or katakana or three-plus hiragana (particles and auxiliaries fall out;
-  a conjugated verb comes as its stem).
+  `WordCandidateExtractor` drops English function words. Japanese reads the page's layout first: furigana lines
+  (short all-hiragana over kanji) and 〈名〉-style labels drop, `かな（漢字）` keeps the kanji and `形（←辞書形）` the
+  dictionary form, a run that is one word stays whole (講演会, 懐かしい, iPS細胞), and only running text goes to
+  `NLTokenizer`, whose adjacent kanji/katakana pieces are joined back (医学 + 部); tokens need a kanji, two katakana or
+  three-plus hiragana (particles and auxiliaries fall out; a conjugated verb comes as its stem). Its test uses Vision's
+  lines from a real textbook photo.
 - **Stats** — Swift Charts dashboard (`StatsAggregator` pure): counts, 7-day bars, accuracy.
 - **Settings** — new-words-per-session, pronunciation accent/auto-play, and AI provider +
   API key (`AIConfigStore`, key stored in the Keychain). As in Exodus, a key is checked by
