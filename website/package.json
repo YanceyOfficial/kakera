@@ -4,9 +4,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev --port 3000",
-    "build": "vite build",
+    "build": "vite build && tsc --noEmit",
     "start": "node .output/server/index.mjs",
     "preview": "vite preview",
+    "deploy": "bun run build && wrangler deploy",
+    "cf-typegen": "wrangler types",
     "typecheck": "tsc --noEmit",
     "shots": "bun scripts/shots.mjs"
   },
@@ -19,11 +21,13 @@
     "solid-js": "^1.9.12"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.69.1",
     "@tailwindcss/vite": "4.3.3",
     "sharp": "^0.35.5",
     "tailwindcss": "4.3.3",
     "typescript": "^7.0.2",
     "vite": "^8.3.4",
-    "vite-plugin-solid": "^2.11.12"
+    "vite-plugin-solid": "^2.11.12",
+    "wrangler": "^4.162.0"
   }
 }
