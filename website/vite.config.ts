@@ -1,6 +1,5 @@
 import tailwindcss from '@tailwindcss/vite'
 import { tanstackStart } from '@tanstack/solid-start/plugin/vite'
-import { nitro } from 'nitro/vite'
 import { defineConfig } from 'vite'
 import solidPlugin from 'vite-plugin-solid'
 import { cloudflare } from '@cloudflare/vite-plugin'
@@ -9,5 +8,5 @@ import { cloudflare } from '@cloudflare/vite-plugin'
 // server output Vercel deploys (vercel.json).
 export default defineConfig({
   resolve: { tsconfigPaths: true },
-  plugins: [cloudflare({ viteEnvironment: { name: 'ssr' } }), nitro(), tailwindcss(), tanstackStart(), solidPlugin({ ssr: true })]
+  plugins: [cloudflare({ viteEnvironment: { name: 'ssr' } }), tailwindcss(), tanstackStart(), solidPlugin({ ssr: true })]
 })
