@@ -5,5 +5,13 @@
     "compatibility_flags": [
         "nodejs_compat"
     ],
-    "main": "@tanstack/solid-start/server-entry"
+    "main": "@tanstack/solid-start/server-entry",
+    "workers_dev": false,
+    "preview_urls": false,
+    "routes": [
+        {
+            "pattern": "kakera.yancey.app",
+            "custom_domain": true
+        }
+    ]
 }
