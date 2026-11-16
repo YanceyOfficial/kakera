@@ -1,24 +1,21 @@
+
 #!/bin/sh
 set -eu
 
-# Xcode Cloud checks the generated workspace after this post-clone step.
-# Keep the editor bundle and Tuist projects generated from the checked-out source.
-export HOMEBREW_NO_AUTO_UPDATE=1
+# Install Mise
+curl https://mise.run | sh
 
-if ! command -v bun >/dev/null 2>&1; then
-    brew install oven-sh/bun/bun
-fi
-if ! command -v tuist >/dev/null 2>&1; then
-    brew install --cask tuist
-fi
-if ! command -v node >/dev/null 2>&1 || ! node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 24 ? 0 : 1)'; then
-    brew install node@24
-    export PATH="$(brew --prefix node@24)/bin:$PATH"
-fi
+export PATH="$HOME/.local/bin:$PATH"
 
-hikki_repository_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-cd "${CI_PRIMARY_REPOSITORY_PATH:-$hikki_repository_dir}"
+# Move to repository root
+cd ..
 
-bun install --frozen-lockfile
-tuist install
-make generate
+# Install pinned Tuist version
+mise install
+
+# Resolve dependencies
+mise exec -- tuist install
+
+# Generate Xcode workspace without opening Xcode
+mise exec -- tuist generate --no-open
+chmod +x ci_scripts/ci_post_clone.sh
